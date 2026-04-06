@@ -666,7 +666,7 @@ This project is maintained by Fabrika Charvat s.r.o. — [https://github.com/par
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE.txt) file for details.
 
 Copyright 2026 Fabrika Charvat s.r.o.
 

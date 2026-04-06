@@ -84,4 +84,4 @@ Please use the GitHub issue tracker. Bug reports are most useful when they inclu
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the [MIT License](LICENSE).
+By contributing, you agree that your contributions will be licensed under the [MIT License](LICENSE.txt).
