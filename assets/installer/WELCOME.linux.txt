@@ -1,0 +1,7 @@
+Welcome to p6a — Partoska Command-Line Interface
+
+This installer will install p6a on your Linux system.
+
+p6a lets you authenticate with Partoska.com, list, create, and update
+events, synchronize event photos to a local directory, list and download
+event media, and retrieve invite links and QR codes from the command line.

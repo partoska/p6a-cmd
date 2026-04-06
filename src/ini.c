@@ -1,0 +1,284 @@
+/*
+ * Command Line Interface for Partoska.com media sharing service.
+ * Copyright (C) 2026 Fabrika Charvat s.r.o. All rights reserved.
+ * Developed by Partoska Laboratory team, <https://lab.partoska.com>
+ *
+ * MIT License
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to
+ * deal in the Software without restriction, including without limitation the
+ * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+ * sell copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
+ *
+ * You can contact the author(s) via email at ask <at> partoska.com.
+ */
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Includes
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+#include "ini.h"
+#include "fs.h"
+#include "types.h"
+#include <ctype.h>
+#include <stdlib.h>
+#include <string.h>
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Macros
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+#define INITIAL_CAPACITY (16)
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Definitions - Private
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+static PLChar *
+plTrim (PLChar *str)
+{
+  while (isspace ((PLByte)*str))
+    {
+      ++str;
+    }
+
+  if (*str == 0)
+    {
+      return str;
+    }
+
+  PLChar *end = str + strlen (str) - 1;
+  while (end > str && isspace ((PLByte)*end))
+    {
+      --end;
+    }
+
+  end[1] = '\0';
+
+  return str;
+}
+
+static PLInt
+plEnsureCapacity (PLIni *ini)
+{
+  if (ini->count >= ini->capacity)
+    {
+      PLSize ncapacity = ini->capacity * 2;
+      PLIniEntry *nentries = (PLIniEntry *)realloc (
+          ini->entries, sizeof (PLIniEntry) * ncapacity);
+      if (!nentries)
+        {
+          return PL_EMEM;
+        }
+
+      ini->entries = nentries;
+      ini->capacity = ncapacity;
+    }
+
+  return PL_EOK;
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Definitions - Public
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+PLIni *
+plIniInit (void)
+{
+  PLIni *ini = (PLIni *)malloc (sizeof (PLIni));
+  if (!ini)
+    {
+      return NULL;
+    }
+
+  ini->capacity = INITIAL_CAPACITY;
+  ini->count = 0;
+  ini->entries = (PLIniEntry *)malloc (sizeof (PLIniEntry) * ini->capacity);
+  if (!ini->entries)
+    {
+      free (ini);
+      return NULL;
+    }
+
+  return ini;
+}
+
+void
+plIniDestroy (PLIni *ini)
+{
+  if (!ini)
+    {
+      return;
+    }
+
+  for (PLSize i = 0; i < ini->count; ++i)
+    {
+      free (ini->entries[i].section);
+      free (ini->entries[i].key);
+      free (ini->entries[i].value);
+    }
+
+  free (ini->entries);
+  free (ini);
+}
+
+PLInt
+plIniLoad (PLIni *ini, const PLChar *filename)
+{
+  PLFile *file = plFileOpen (filename, "r");
+  if (!file)
+    {
+      return PL_EFS;
+    }
+
+  PLChar line[1024];
+  PLChar section[256] = "";
+  while (fgets (line, sizeof (line), file))
+    {
+      PLChar *trimmed = plTrim (line);
+      if (*trimmed == '\0' || *trimmed == ';' || *trimmed == '#')
+        {
+          continue;
+        }
+
+      if (*trimmed == '[')
+        {
+          PLChar *end = strchr (trimmed, ']');
+          if (end)
+            {
+              *end = '\0';
+              strncpy (section, trimmed + 1, PL_CHARSMAX (section));
+              section[PL_CHARSMAX (section)] = '\0';
+            }
+          continue;
+        }
+
+      PLChar *equals = strchr (trimmed, '=');
+      if (equals)
+        {
+          *equals = '\0';
+          PLChar *key = plTrim (trimmed);
+          PLChar *value = plTrim (equals + 1);
+          if (plIniSet (ini, section, key, value) != PL_EOK)
+            {
+              plFileClose (file);
+              return PL_EMEM;
+            }
+        }
+    }
+
+  plFileClose (file);
+
+  return PL_EOK;
+}
+
+PLInt
+plIniSave (PLIni *ini, const PLChar *filename)
+{
+  PLFile *file = plFileOpen (filename, "w");
+  if (!file)
+    {
+      return PL_EFS;
+    }
+
+  fprintf (file, "; Partoska.com Configuration File\n");
+  fprintf (file, "; Auto-generated by p6a utility v" PL_VERSION_STRING ".\n");
+  fprintf (file,
+           "; Do not modify. More info at <https://lab.partoska.com/p6a>\n\n");
+
+  const PLChar *section = NULL;
+  for (PLSize i = 0; i < ini->count; ++i)
+    {
+      if (!section || strcmp (section, ini->entries[i].section) != 0)
+        {
+          section = ini->entries[i].section;
+          if (i > 0)
+            {
+              fprintf (file, "\n");
+            }
+          fprintf (file, "[%s]\n", section);
+        }
+      fprintf (file, "%s=%s\n", ini->entries[i].key, ini->entries[i].value);
+    }
+
+  plFileClose (file);
+
+  return PL_EOK;
+}
+
+const PLChar *
+plIniGet (PLIni *ini, const PLChar *section, const PLChar *key)
+{
+  for (PLSize i = 0; i < ini->count; ++i)
+    {
+      if (strcmp (ini->entries[i].section, section) == 0
+          && strcmp (ini->entries[i].key, key) == 0)
+        {
+          return ini->entries[i].value;
+        }
+    }
+
+  return NULL;
+}
+
+PLInt
+plIniSet (PLIni *ini, const PLChar *section, const PLChar *key,
+          const PLChar *value)
+{
+  for (PLSize i = 0; i < ini->count; ++i)
+    {
+      if (strcmp (ini->entries[i].section, section) == 0
+          && strcmp (ini->entries[i].key, key) == 0)
+        {
+          if (value == ini->entries[i].value)
+            {
+              // We are inserting the same value, no need to update.
+              return PL_EOK;
+            }
+
+          free (ini->entries[i].value);
+          ini->entries[i].value = strdup (value);
+          if (ini->entries[i].value == NULL)
+            {
+              return PL_EMEM;
+            }
+
+          return PL_EOK;
+        }
+    }
+
+  if (plEnsureCapacity (ini) != PL_EOK)
+    {
+      return PL_EMEM;
+    }
+
+  PLIniEntry *entry = &ini->entries[ini->count];
+  entry->section = strdup (section);
+  entry->key = strdup (key);
+  entry->value = strdup (value);
+  if (!entry->section || !entry->key || !entry->value)
+    {
+      free (entry->section);
+      free (entry->key);
+      free (entry->value);
+
+      return PL_EMEM;
+    }
+
+  ++(ini->count);
+
+  return PL_EOK;
+}
