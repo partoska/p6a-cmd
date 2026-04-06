@@ -46,20 +46,6 @@
 #ifdef _WIN32
 #include <direct.h>
 
-static PLChar *
-mkdtemp (PLChar *tmpl)
-{
-  if (_mktemp (tmpl) == NULL)
-    {
-      return NULL;
-    }
-  if (_mkdir (tmpl) != 0)
-    {
-      return NULL;
-    }
-  return tmpl;
-}
-
 static PLInt
 setenv (const PLChar *name, const PLChar *value, PLInt overwrite)
 {
