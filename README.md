@@ -17,6 +17,7 @@ Manage and sync your event photos from [Partoska](https://www.partoska.com) — 
 - Filter by events you own or have favorited.
 - Get or download invite links and QR codes for sharing events.
 - Works on macOS, Linux, and Windows.
+- [Agent skills available](https://github.com/partoska/p6a-skills) for use with AI assistants.
 
 ## Quick Start
 
@@ -660,18 +661,18 @@ Available sanitizers: `address`, `undefined`, `float-cast-overflow` (plus `integ
 
 Contributions, bug reports, and feature requests are welcome!
 
-[CONTRIBUTING.md](CONTRIBUTING.md) covers everything you need: build setup, code style, running tests, and how to submit a pull request. If you've found a bug or have an idea, feel free to open an issue — even a detailed bug report is a valuable contribution.
-
-This project is maintained by Fabrika Charvat s.r.o. — [https://github.com/partoska/p6a-cmd](https://github.com/partoska/p6a-cmd)
+[CONTRIBUTING.md](CONTRIBUTING.md) covers everything you need: build setup, code style, running tests, and how to submit a pull request. If you've found a bug or have an idea, feel free to open an issue. Even a detailed bug report is a valuable contribution.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE.txt) file for details.
+MIT License. See [LICENSE](LICENSE.txt) file for details.
 
-Copyright 2026 Fabrika Charvat s.r.o.
+Copyright (C) 2026 Fabrika Charvat s.r.o.
+Developed by [Partoska Laboratory](https://lab.partoska.com) team.
 
 ## Links
 
 - **Partoska Website:** [https://www.partoska.com](https://www.partoska.com)
 - **Project Website:** [https://lab.partoska.com/p6a](https://lab.partoska.com/p6a)
+- **Agent Skills:** [https://github.com/partoska/p6a-skills](https://github.com/partoska/p6a-skills)
 - **API Documentation:** [https://api.partoska.com/rest/v1/swagger.yml](https://api.partoska.com/rest/v1/swagger.yml)
