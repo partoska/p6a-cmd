@@ -17,6 +17,8 @@ USAGE
   p6a link           Get invite link for an event
   p6a media          List media items for an event
   p6a download       Download media for an event
+  p6a edit           Update a media item
+  p6a approve        Approve a media item in a moderated event
   p6a logout         Clear stored credentials
   p6a help           Show usage information
   p6a version        Print version information

@@ -119,7 +119,7 @@ plPrintEventHeader (PLArgFmt fmt)
   switch (fmt)
     {
     case PL_FMTCSV:
-      PL_INFO ("id,name,from,to,owner,favorite,public,guests,media");
+      PL_INFO ("id,name,from,to,owner,favorite,public,moderated,guests,media");
       break;
     case PL_FMTJSON:
       PL_INFO ("[");
@@ -128,9 +128,9 @@ plPrintEventHeader (PLArgFmt fmt)
       break;
     default:
       snprintf (buf, PL_CHARSMAX (buf),
-                "%-*s  %-36s  %-10s  %-10s  %3s %3s %3s  %6s  %5s", NAME_WIDTH,
-                "NAME", "ID", "FROM", "TO", "OWN", "FAV", "PUB", "GUESTS",
-                "MEDIA");
+                "%-*s  %-36s  %-10s  %-10s  %3s %3s %3s %3s  %6s  %5s",
+                NAME_WIDTH, "NAME", "ID", "FROM", "TO", "OWN", "FAV", "PUB",
+                "MOD", "GUESTS", "MEDIA");
       buf[PL_CHARSMAX (buf)] = '\0';
       PL_INFO ("%s", buf);
       break;
@@ -140,7 +140,8 @@ plPrintEventHeader (PLArgFmt fmt)
 void
 plPrintEventRow (const PLChar *name, const PLChar *id, const PLChar *from,
                  const PLChar *to, PLBool owner, PLBool favorite, PLBool pub,
-                 PLInt guests, PLInt media, PLArgFmt fmt, PLBool last)
+                 PLBool moderated, PLInt guests, PLInt media, PLArgFmt fmt,
+                 PLBool last)
 {
   PLChar buf[JSON_MAX];
 
@@ -154,10 +155,10 @@ plPrintEventRow (const PLChar *name, const PLChar *id, const PLChar *from,
         plCsvQuote (qname, sizeof (qname), name);
         plCsvQuote (qfrom, sizeof (qfrom), from);
         plCsvQuote (qto, sizeof (qto), to);
-        snprintf (buf, PL_CHARSMAX (buf), "%s,%s,%s,%s,%s,%s,%s,%d,%d", id,
+        snprintf (buf, PL_CHARSMAX (buf), "%s,%s,%s,%s,%s,%s,%s,%s,%d,%d", id,
                   qname, qfrom, qto, owner ? "true" : "false",
-                  favorite ? "true" : "false", pub ? "true" : "false", guests,
-                  media);
+                  favorite ? "true" : "false", pub ? "true" : "false",
+                  moderated ? "true" : "false", guests, media);
         buf[PL_CHARSMAX (buf)] = '\0';
         PL_INFO ("%s", buf);
         break;
@@ -173,10 +174,10 @@ plPrintEventRow (const PLChar *name, const PLChar *id, const PLChar *from,
         snprintf (buf, PL_CHARSMAX (buf),
                   "  {\"id\":\"%s\",\"name\":\"%s\",\"from\":\"%s\","
                   "\"to\":\"%s\",\"owner\":%s,\"favorite\":%s,"
-                  "\"public\":%s,\"guests\":%d,\"media\":%d}%s",
+                  "\"public\":%s,\"moderated\":%s,\"guests\":%d,\"media\":%d}%s",
                   id, ename, from, to, owner ? "true" : "false",
-                  favorite ? "true" : "false", pub ? "true" : "false", guests,
-                  media, comma);
+                  favorite ? "true" : "false", pub ? "true" : "false",
+                  moderated ? "true" : "false", guests, media, comma);
         buf[PL_CHARSMAX (buf)] = '\0';
         PL_INFO ("%s", buf);
         break;
@@ -197,9 +198,10 @@ plPrintEventRow (const PLChar *name, const PLChar *id, const PLChar *from,
 
         PLInt width = NAME_WIDTH + (PLInt)plExtraBytes (tname);
         snprintf (buf, PL_CHARSMAX (buf),
-                  "%-*s  %-36s  %-10s  %-10s  %3s %3s %3s  %6d  %5d", width,
-                  tname, id, tfrom, tto, owner ? "yes" : "no",
-                  favorite ? "yes" : "no", pub ? "yes" : "no", guests, media);
+                  "%-*s  %-36s  %-10s  %-10s  %3s %3s %3s %3s  %6d  %5d",
+                  width, tname, id, tfrom, tto, owner ? "yes" : "no",
+                  favorite ? "yes" : "no", pub ? "yes" : "no",
+                  moderated ? "yes" : "no", guests, media);
         buf[PL_CHARSMAX (buf)] = '\0';
         PL_INFO ("%s", buf);
         break;
@@ -272,7 +274,7 @@ plList (const PLChar *base, const PLChar *bearer, const PLChar *query,
         }
 
       plPrintEventRow (e->name, e->id, e->from, e->to, e->owner, e->favorite,
-                       e->pub, e->guests, e->media, fmt,
+                       e->pub, e->moderated, e->guests, e->media, fmt,
                        printed == filtered - 1);
 
       ++printed;

@@ -259,10 +259,12 @@ plArgParseUpdate (PLArg *args, PLInt argc, PLChar **argv)
                                   { "private", no_argument, NULL, 'P' },
                                   { "favorite", no_argument, NULL, 'f' },
                                   { "no-favorite", no_argument, NULL, 'F' },
+                                  { "moderated", no_argument, NULL, 'm' },
+                                  { "no-moderated", no_argument, NULL, 'M' },
                                   { NULL, 0, NULL, 0 } };
   PLInt c;
   opterr = 0;
-  while ((c = getopt_long (argc, argv, "D:e:n:S:E:pPfF", opts, NULL)) != -1)
+  while ((c = getopt_long (argc, argv, "D:e:n:S:E:pPfFmM", opts, NULL)) != -1)
     {
       switch (c)
         {
@@ -311,6 +313,16 @@ plArgParseUpdate (PLArg *args, PLInt argc, PLChar **argv)
           args->flags = (args->flags & ~(PLDword)PL_FFAVMASK) | PL_FFAVFALSE;
           break;
 
+        case 'm':
+          PL_DSLOW ("Arg: --moderated");
+          args->flags = (args->flags & ~(PLDword)PL_FMODMASK) | PL_FMODTRUE;
+          break;
+
+        case 'M':
+          PL_DSLOW ("Arg: --no-moderated");
+          args->flags = (args->flags & ~(PLDword)PL_FMODMASK) | PL_FMODFALSE;
+          break;
+
         default:
           return PL_EARG;
         }
@@ -323,7 +335,7 @@ plArgParseUpdate (PLArg *args, PLInt argc, PLChar **argv)
 
   if (args->c.update.name == NULL && args->c.update.from == NULL
       && args->c.update.to == NULL && (args->flags & PL_FPUBMASK) == 0
-      && (args->flags & PL_FFAVMASK) == 0)
+      && (args->flags & PL_FFAVMASK) == 0 && (args->flags & PL_FMODMASK) == 0)
     {
       return PL_EARG;
     }
@@ -500,6 +512,105 @@ plArgParseDownload (PLArg *args, PLInt argc, PLChar **argv)
 }
 
 static PLInt
+plArgParseEdit (PLArg *args, PLInt argc, PLChar **argv)
+{
+  static struct option opts[] = { { "dir", required_argument, NULL, 'D' },
+                                  { "event", required_argument, NULL, 'e' },
+                                  { "media", required_argument, NULL, 'm' },
+                                  { "favorite", no_argument, NULL, 'f' },
+                                  { "no-favorite", no_argument, NULL, 'F' },
+                                  { NULL, 0, NULL, 0 } };
+  PLInt c;
+  opterr = 0;
+  while ((c = getopt_long (argc, argv, "D:e:m:fF", opts, NULL)) != -1)
+    {
+      switch (c)
+        {
+        case 'D':
+          PL_DSLOW ("Arg: --dir=%s", optarg);
+          args->dir = optarg;
+          break;
+
+        case 'e':
+          PL_DSLOW ("Arg: --event=%s", optarg);
+          args->c.edit.event = optarg;
+          break;
+
+        case 'm':
+          PL_DSLOW ("Arg: --media=%s", optarg);
+          args->c.edit.media = optarg;
+          break;
+
+        case 'f':
+          PL_DSLOW ("Arg: --favorite");
+          args->flags = (args->flags & ~(PLDword)PL_FFAVMASK) | PL_FFAVTRUE;
+          break;
+
+        case 'F':
+          PL_DSLOW ("Arg: --no-favorite");
+          args->flags = (args->flags & ~(PLDword)PL_FFAVMASK) | PL_FFAVFALSE;
+          break;
+
+        default:
+          return PL_EARG;
+        }
+    }
+
+  if (args->c.edit.event == NULL || args->c.edit.media == NULL)
+    {
+      return PL_EARG;
+    }
+
+  if ((args->flags & PL_FFAVMASK) == 0)
+    {
+      return PL_EARG;
+    }
+
+  return PL_EOK;
+}
+
+static PLInt
+plArgParseApprove (PLArg *args, PLInt argc, PLChar **argv)
+{
+  static struct option opts[] = { { "dir", required_argument, NULL, 'D' },
+                                  { "event", required_argument, NULL, 'e' },
+                                  { "media", required_argument, NULL, 'm' },
+                                  { NULL, 0, NULL, 0 } };
+  PLInt c;
+  opterr = 0;
+  while ((c = getopt_long (argc, argv, "D:e:m:", opts, NULL)) != -1)
+    {
+      switch (c)
+        {
+        case 'D':
+          PL_DSLOW ("Arg: --dir=%s", optarg);
+          args->dir = optarg;
+          break;
+
+        case 'e':
+          PL_DSLOW ("Arg: --event=%s", optarg);
+          args->c.approve.event = optarg;
+          break;
+
+        case 'm':
+          PL_DSLOW ("Arg: --media=%s", optarg);
+          args->c.approve.media = optarg;
+          break;
+
+        default:
+          return PL_EARG;
+        }
+    }
+
+  if (args->c.approve.event == NULL || args->c.approve.media == NULL)
+    {
+      return PL_EARG;
+    }
+
+  return PL_EOK;
+}
+
+static PLInt
 plArgParseLink (PLArg *args, PLInt argc, PLChar **argv)
 {
   static struct option opts[] = { { "dir", required_argument, NULL, 'D' },
@@ -613,6 +724,16 @@ plArgParse (PLArg *args, PLInt argc, PLChar **argv)
     {
       args->cmd = PL_CDOWNLOAD;
       return plArgParseDownload (args, argc - 1, &argv[1]);
+    }
+  else if (strcmp (cmd, "edit") == 0)
+    {
+      args->cmd = PL_CEDIT;
+      return plArgParseEdit (args, argc - 1, &argv[1]);
+    }
+  else if (strcmp (cmd, "approve") == 0)
+    {
+      args->cmd = PL_CAPPROVE;
+      return plArgParseApprove (args, argc - 1, &argv[1]);
     }
   else
     {

@@ -60,8 +60,8 @@ plCreate (const PLChar *base, const PLChar *bearer, const PLChar *name,
 
   plPrintEventHeader (fmt);
   plPrintEventRow (event.name, event.id, event.from, event.to, event.owner,
-                   event.favorite, event.pub, event.guests, event.media, fmt,
-                   PL_TRUE);
+                   event.favorite, event.pub, event.moderated, event.guests,
+                   event.media, fmt, PL_TRUE);
   plPrintEventFooter (fmt);
   if (fmt == PL_FMTPLAIN)
     {

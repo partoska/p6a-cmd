@@ -57,7 +57,7 @@ plPrintMediaHeader (PLArgFmt fmt)
   switch (fmt)
     {
     case PL_FMTCSV:
-      PL_INFO ("id,type,taken,uploaded,owner,favorite,favorites");
+      PL_INFO ("id,type,taken,uploaded,owner,favorite,favorites,approved");
       break;
     case PL_FMTJSON:
       PL_INFO ("[");
@@ -66,8 +66,9 @@ plPrintMediaHeader (PLArgFmt fmt)
       break;
     default:
       snprintf (buf, PL_CHARSMAX (buf),
-                "%-36s  %-*s  %-10s  %-10s  %3s %3s  %4s", "ID", TYPE_WIDTH,
-                "TYPE", "TAKEN", "UPLOADED", "OWN", "FAV", "FAVS");
+                "%-36s  %-*s  %-10s  %-10s  %3s %3s  %4s  %3s", "ID",
+                TYPE_WIDTH, "TYPE", "TAKEN", "UPLOADED", "OWN", "FAV", "FAVS",
+                "APR");
       buf[PL_CHARSMAX (buf)] = '\0';
       PL_INFO ("%s", buf);
       break;
@@ -77,16 +78,17 @@ plPrintMediaHeader (PLArgFmt fmt)
 static void
 plPrintMediaRow (const PLChar *id, const PLChar *type, const PLChar *taken,
                  const PLChar *uploaded, PLBool owner, PLBool favorite,
-                 PLInt favorites, PLArgFmt fmt, PLBool last)
+                 PLInt favorites, PLBool approved, PLArgFmt fmt, PLBool last)
 {
   PLChar buf[ROW_MAX];
 
   switch (fmt)
     {
     case PL_FMTCSV:
-      snprintf (buf, PL_CHARSMAX (buf), "%s,%s,%s,%s,%s,%s,%d", id, type,
+      snprintf (buf, PL_CHARSMAX (buf), "%s,%s,%s,%s,%s,%s,%d,%s", id, type,
                 taken, uploaded, owner ? "true" : "false",
-                favorite ? "true" : "false", favorites);
+                favorite ? "true" : "false", favorites,
+                approved ? "true" : "false");
       buf[PL_CHARSMAX (buf)] = '\0';
       PL_INFO ("%s", buf);
       break;
@@ -101,9 +103,10 @@ plPrintMediaRow (const PLChar *id, const PLChar *type, const PLChar *taken,
         snprintf (buf, PL_CHARSMAX (buf),
                   "  {\"id\":\"%s\",\"type\":\"%s\",\"taken\":\"%s\","
                   "\"uploaded\":\"%s\",\"owner\":%s,\"favorite\":%s,"
-                  "\"favorites\":%d}%s",
+                  "\"favorites\":%d,\"approved\":%s}%s",
                   id, type, taken, uploaded, owner ? "true" : "false",
-                  favorite ? "true" : "false", favorites, comma);
+                  favorite ? "true" : "false", favorites,
+                  approved ? "true" : "false", comma);
         buf[PL_CHARSMAX (buf)] = '\0';
         PL_INFO ("%s", buf);
         break;
@@ -124,9 +127,9 @@ plPrintMediaRow (const PLChar *id, const PLChar *type, const PLChar *taken,
         tuploaded[DATE_WIDTH] = '\0';
 
         snprintf (buf, PL_CHARSMAX (buf),
-                  "%-36s  %-*s  %-10s  %-10s  %3s %3s  %4d", id, TYPE_WIDTH,
-                  ttype, ttaken, tuploaded, owner ? "yes" : "no",
-                  favorite ? "yes" : "no", favorites);
+                  "%-36s  %-*s  %-10s  %-10s  %3s %3s  %4d  %3s", id,
+                  TYPE_WIDTH, ttype, ttaken, tuploaded, owner ? "yes" : "no",
+                  favorite ? "yes" : "no", favorites, approved ? "yes" : "no");
         buf[PL_CHARSMAX (buf)] = '\0';
         PL_INFO ("%s", buf);
         break;
@@ -198,7 +201,7 @@ plMediaList (const PLChar *base, const PLChar *bearer, const PLChar *event,
           continue;
         }
       plPrintMediaRow (m->id, m->type, m->taken, m->uploaded, m->owner,
-                       m->favorite, m->favorites, fmt,
+                       m->favorite, m->favorites, m->approved, fmt,
                        printed == filtered - 1);
       ++printed;
     }

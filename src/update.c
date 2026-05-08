@@ -42,7 +42,7 @@
 PLInt
 plUpdate (const PLChar *base, const PLChar *bearer, const PLChar *id,
           const PLChar *name, const PLChar *from, const PLChar *to, PLInt pub,
-          PLInt fav)
+          PLInt fav, PLInt mod)
 {
   if (!base || !bearer || !id)
     {
@@ -50,7 +50,8 @@ plUpdate (const PLChar *base, const PLChar *bearer, const PLChar *id,
       return PL_EARG;
     }
 
-  PLInt result = plApiEventUpdate (base, bearer, id, name, from, to, pub, fav);
+  PLInt result
+      = plApiEventUpdate (base, bearer, id, name, from, to, pub, fav, mod);
   if (result != PL_EOK)
     {
       PL_ERROR ("Failed to update event");

@@ -275,6 +275,12 @@ testUpdate (void)
   PLChar *argvFav[] = { "p6a", "update", "-e", "event-uuid", "--favorite" };
   PLChar *argvNofav[]
       = { "p6a", "update", "-e", "event-uuid", "--no-favorite" };
+  PLChar *argvMod[] = { "p6a", "update", "-e", "event-uuid", "-m" };
+  PLChar *argvNomod[] = { "p6a", "update", "-e", "event-uuid", "-M" };
+  PLChar *argvLongMod[]
+      = { "p6a", "update", "-e", "event-uuid", "--moderated" };
+  PLChar *argvLongNomod[]
+      = { "p6a", "update", "-e", "event-uuid", "--no-moderated" };
 
   PL_ASSERT_EQ (parse (&args, 6, argvRename), PL_EOK);
   PL_ASSERT_EQ (args.cmd, PL_CUPDATE);
@@ -292,6 +298,18 @@ testUpdate (void)
 
   PL_ASSERT_EQ (parse (&args, 5, argvNofav), PL_EOK);
   PL_ASSERT_EQ (PL_ARGFAV (args.flags), 0);
+
+  PL_ASSERT_EQ (parse (&args, 5, argvMod), PL_EOK);
+  PL_ASSERT_EQ (PL_ARGMOD (args.flags), 1);
+
+  PL_ASSERT_EQ (parse (&args, 5, argvNomod), PL_EOK);
+  PL_ASSERT_EQ (PL_ARGMOD (args.flags), 0);
+
+  PL_ASSERT_EQ (parse (&args, 5, argvLongMod), PL_EOK);
+  PL_ASSERT_EQ (PL_ARGMOD (args.flags), 1);
+
+  PL_ASSERT_EQ (parse (&args, 5, argvLongNomod), PL_EOK);
+  PL_ASSERT_EQ (PL_ARGMOD (args.flags), 0);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -390,6 +408,77 @@ testDownload (void)
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Tests - edit
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+static void
+testEdit (void)
+{
+  PLArg args;
+  PLChar *argvFav[] = { "p6a", "edit", "-e", "event-uuid",
+                        "-m",  "media-uuid", "-f" };
+  PLChar *argvNofav[] = { "p6a", "edit", "-e", "event-uuid",
+                          "-m",  "media-uuid", "-F" };
+  PLChar *argvLongFav[] = { "p6a", "edit",       "-e", "event-uuid",
+                            "-m",  "media-uuid", "--favorite" };
+  PLChar *argvLongNofav[] = { "p6a", "edit",       "-e", "event-uuid",
+                              "-m",  "media-uuid", "--no-favorite" };
+  PLChar *argvNoEvent[] = { "p6a", "edit", "-m", "media-uuid", "-f" };
+  PLChar *argvNoMedia[] = { "p6a", "edit", "-e", "event-uuid", "-f" };
+  PLChar *argvNoField[] = { "p6a", "edit", "-e", "event-uuid",
+                            "-m",  "media-uuid" };
+
+  PL_ASSERT_EQ (parse (&args, 7, argvFav), PL_EOK);
+  PL_ASSERT_EQ (args.cmd, PL_CEDIT);
+  PL_ASSERT_STR_EQ (args.c.edit.event, "event-uuid");
+  PL_ASSERT_STR_EQ (args.c.edit.media, "media-uuid");
+  PL_ASSERT_EQ (PL_ARGFAV (args.flags), 1);
+
+  PL_ASSERT_EQ (parse (&args, 7, argvNofav), PL_EOK);
+  PL_ASSERT_EQ (PL_ARGFAV (args.flags), 0);
+
+  PL_ASSERT_EQ (parse (&args, 7, argvLongFav), PL_EOK);
+  PL_ASSERT_EQ (PL_ARGFAV (args.flags), 1);
+
+  PL_ASSERT_EQ (parse (&args, 7, argvLongNofav), PL_EOK);
+  PL_ASSERT_EQ (PL_ARGFAV (args.flags), 0);
+
+  // Missing event, media, or field must be rejected.
+  PL_ASSERT_EQ (parse (&args, 5, argvNoEvent), PL_EARG);
+  PL_ASSERT_EQ (parse (&args, 5, argvNoMedia), PL_EARG);
+  PL_ASSERT_EQ (parse (&args, 6, argvNoField), PL_EARG);
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Tests - approve
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+static void
+testApprove (void)
+{
+  PLArg args;
+  PLChar *argv[] = { "p6a", "approve", "-e", "event-uuid",
+                     "-m",  "media-uuid" };
+  PLChar *argvLong[] = { "p6a",    "approve", "--event", "event-uuid",
+                         "--media", "media-uuid" };
+  PLChar *argvNoEvent[] = { "p6a", "approve", "-m", "media-uuid" };
+  PLChar *argvNoMedia[] = { "p6a", "approve", "-e", "event-uuid" };
+
+  PL_ASSERT_EQ (parse (&args, 6, argv), PL_EOK);
+  PL_ASSERT_EQ (args.cmd, PL_CAPPROVE);
+  PL_ASSERT_STR_EQ (args.c.approve.event, "event-uuid");
+  PL_ASSERT_STR_EQ (args.c.approve.media, "media-uuid");
+
+  PL_ASSERT_EQ (parse (&args, 6, argvLong), PL_EOK);
+  PL_ASSERT_STR_EQ (args.c.approve.event, "event-uuid");
+  PL_ASSERT_STR_EQ (args.c.approve.media, "media-uuid");
+
+  // Missing event or media must be rejected.
+  PL_ASSERT_EQ (parse (&args, 4, argvNoEvent), PL_EARG);
+  PL_ASSERT_EQ (parse (&args, 4, argvNoMedia), PL_EARG);
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - flags cleared between calls
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
@@ -438,6 +527,8 @@ main (void)
   PL_RUN (testLink);
   PL_RUN (testMedia);
   PL_RUN (testDownload);
+  PL_RUN (testEdit);
+  PL_RUN (testApprove);
 
   PL_SUITE ("arg - state isolation");
   PL_RUN (testFlagsCleared);

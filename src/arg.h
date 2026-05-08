@@ -42,6 +42,7 @@
 #define PL_ARGFMT(flags) ((PLArgFmt)(((flags) & PL_FFMTMASK) >> 4))
 #define PL_ARGPUB(flags) ((PLInt)(((flags) & PL_FPUBMASK) >> 8) - 1)
 #define PL_ARGFAV(flags) ((PLInt)(((flags) & PL_FFAVMASK) >> 10) - 1)
+#define PL_ARGMOD(flags) ((PLInt)(((flags) & PL_FMODMASK) >> 12) - 1)
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Types
@@ -59,6 +60,8 @@ typedef enum
   PL_CUPDATE,
   PL_CMEDIA,
   PL_CDOWNLOAD,
+  PL_CEDIT,
+  PL_CAPPROVE,
   PL_CHELP,
   PL_CVERSION,
 
@@ -79,7 +82,10 @@ typedef enum
   PL_FPUBMASK = 0x00000300,
   PL_FFAVFALSE = 0x00000400,
   PL_FFAVTRUE = 0x00000800,
-  PL_FFAVMASK = 0x00000C00
+  PL_FFAVMASK = 0x00000C00,
+  PL_FMODFALSE = 0x00001000,
+  PL_FMODTRUE = 0x00002000,
+  PL_FMODMASK = 0x00003000
 } PLArgFlag;
 
 typedef enum
@@ -139,6 +145,16 @@ typedef struct PLArgs
       const PLChar *target;
       const PLChar *media;
     } download;
+    struct
+    {
+      const PLChar *event;
+      const PLChar *media;
+    } edit;
+    struct
+    {
+      const PLChar *event;
+      const PLChar *media;
+    } approve;
   } c;
 } PLArg;
 

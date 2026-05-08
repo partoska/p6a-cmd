@@ -26,40 +26,36 @@
  * You can contact the author(s) via email at ask <at> partoska.com.
  */
 
-#ifndef UPDATE_H
-#define UPDATE_H
-
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Includes
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+#include "edit.h"
+#include "api.h"
+#include "logger.h"
 #include "types.h"
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- * Declarations
+ * Definitions - Public
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-/**
- * Partially updates an event on Partoska.
- *
- * Only non-NULL string fields and non-(-1) integer fields are sent.
- *
- * @param base   API base URL.
- * @param bearer OAuth bearer token.
- * @param id     UUID of the event to update.
- * @param name   New display name, or NULL to leave unchanged.
- * @param from   New start date string, or NULL to leave unchanged.
- * @param to     New end date string, or NULL to leave unchanged.
- * @param pub    Public flag: 1 to set public, 0 to set private, -1 to leave
- *               unchanged.
- * @param fav    Favorite flag: 1 to favorite, 0 to unfavorite, -1 to leave
- *               unchanged.
- * @param mod    Moderated flag: 1 to enable moderation, 0 to disable, -1 to
- *               leave unchanged.
- * @return PL_EOK on success, or a PL_E* error code on failure.
- */
-PLInt plUpdate (const PLChar *base, const PLChar *bearer, const PLChar *id,
-                const PLChar *name, const PLChar *from, const PLChar *to,
-                PLInt pub, PLInt fav, PLInt mod);
+PLInt
+plEdit (const PLChar *base, const PLChar *bearer, const PLChar *event,
+        const PLChar *media, PLInt fav)
+{
+  if (!base || !bearer || !event || !media)
+    {
+      PL_ERROR ("Endpoint, bearer, event, and/or media are invalid");
+      return PL_EARG;
+    }
 
-#endif
+  PLInt result
+      = plApiMediaUpdate (base, bearer, event, media, fav);
+  if (result != PL_EOK)
+    {
+      PL_ERROR ("Failed to update media");
+      return result;
+    }
+
+  return PL_EOK;
+}

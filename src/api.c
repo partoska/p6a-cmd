@@ -212,6 +212,13 @@ plParseEvent (cJSON *json, PLEvent *event)
     }
   event->pub = cJSON_IsTrue (pub) ? 1 : 0;
 
+  cJSON *moderated = cJSON_GetObjectItemCaseSensitive (json, "moderated");
+  if (!cJSON_IsBool (moderated))
+    {
+      return PL_FALSE;
+    }
+  event->moderated = cJSON_IsTrue (moderated) ? 1 : 0;
+
   return PL_TRUE;
 }
 
@@ -274,6 +281,13 @@ plParseMedia (cJSON *json, PLMedia *media)
       return PL_FALSE;
     }
   media->favorites = (PLInt)favorites->valueint;
+
+  cJSON *approved = cJSON_GetObjectItemCaseSensitive (json, "approved");
+  if (!cJSON_IsBool (approved))
+    {
+      return PL_FALSE;
+    }
+  media->approved = cJSON_IsTrue (approved) ? 1 : 0;
 
   return PL_TRUE;
 }
@@ -395,6 +409,7 @@ plApiEventCreate (PLEvent *event, const PLChar *base, const PLChar *token,
   cJSON *jpublic = cJSON_GetObjectItemCaseSensitive (json, "public");
   cJSON *jguests = cJSON_GetObjectItemCaseSensitive (json, "guests");
   cJSON *jmedia = cJSON_GetObjectItemCaseSensitive (json, "media");
+  cJSON *jmoderated = cJSON_GetObjectItemCaseSensitive (json, "moderated");
   if (!cJSON_IsString (jid) || !jid->valuestring || !cJSON_IsString (jname)
       || !jname->valuestring || !cJSON_IsString (jcreated)
       || !jcreated->valuestring || !cJSON_IsString (jexpires)
@@ -402,7 +417,7 @@ plApiEventCreate (PLEvent *event, const PLChar *base, const PLChar *token,
       || !jfrom->valuestring || !cJSON_IsString (jto) || !jto->valuestring
       || !cJSON_IsBool (jowner) || !cJSON_IsBool (jfavorite)
       || !cJSON_IsBool (jpublic) || !cJSON_IsNumber (jguests)
-      || !cJSON_IsNumber (jmedia))
+      || !cJSON_IsNumber (jmedia) || !cJSON_IsBool (jmoderated))
     {
       PL_ERROR ("Unexpected JSON structure in response");
       cJSON_Delete (json);
@@ -435,6 +450,7 @@ plApiEventCreate (PLEvent *event, const PLChar *base, const PLChar *token,
   event->pub = cJSON_IsTrue (jpublic) ? 1 : 0;
   event->guests = jguests->valueint;
   event->media = jmedia->valueint;
+  event->moderated = cJSON_IsTrue (jmoderated) ? 1 : 0;
 
   cJSON_Delete (json);
 
@@ -920,7 +936,7 @@ cleanup:
 PLInt
 plApiEventUpdate (const PLChar *base, const PLChar *token, const PLChar *id,
                   const PLChar *name, const PLChar *from, const PLChar *to,
-                  PLInt pub, PLInt fav)
+                  PLInt pub, PLInt fav, PLInt mod)
 {
   if (!base || !token || !id)
     {
@@ -975,6 +991,10 @@ plApiEventUpdate (const PLChar *base, const PLChar *token, const PLChar *id,
   if (fav != -1)
     {
       cJSON_AddBoolToObject (body, "favorite", fav ? 1 : 0);
+    }
+  if (mod != -1)
+    {
+      cJSON_AddBoolToObject (body, "moderated", mod ? 1 : 0);
     }
   PLChar *bodystr = cJSON_PrintUnformatted (body);
   cJSON_Delete (body);
@@ -1126,4 +1146,176 @@ cleanup:
   curl_easy_cleanup (curl);
 
   return result;
+}
+
+PLInt
+plApiMediaUpdate (const PLChar *base, const PLChar *token, const PLChar *event,
+                  const PLChar *media, PLInt fav)
+{
+  if (!base || !token || !event || !media)
+    {
+      PL_ERROR ("Endpoint, token, event, and/or media are invalid");
+      return PL_EARG;
+    }
+
+  CURL *curl = curl_easy_init ();
+  if (!curl)
+    {
+      PL_ERROR ("Failed to initialize curl");
+      return PL_EMEM;
+    }
+#ifdef _WIN32
+  curl_easy_setopt (curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
+#endif
+
+  PLInt rc = PL_EOK;
+
+  PLChar url[URL_MAX];
+  snprintf (url, PL_CHARSMAX (url), "%s/event/%s/media/%s", base, event,
+            media);
+  url[PL_CHARSMAX (url)] = '\0';
+
+  PLChar authorization[AUTHORIZATION_MAX];
+  snprintf (authorization, PL_CHARSMAX (authorization),
+            "Authorization: Bearer %s", token);
+  authorization[PL_CHARSMAX (authorization)] = '\0';
+
+  cJSON *body = cJSON_CreateObject ();
+  if (!body)
+    {
+      PL_ERROR ("Out of memory");
+      curl_easy_cleanup (curl);
+      return PL_EMEM;
+    }
+
+  if (fav != -1)
+    {
+      cJSON_AddBoolToObject (body, "favorite", fav ? 1 : 0);
+    }
+
+  PLChar *bodystr = cJSON_PrintUnformatted (body);
+  cJSON_Delete (body);
+  if (!bodystr)
+    {
+      PL_ERROR ("Out of memory");
+      curl_easy_cleanup (curl);
+      return PL_EMEM;
+    }
+
+  struct curl_slist *headers = NULL;
+  headers = curl_slist_append (headers, "Accept: application/json");
+  headers = curl_slist_append (headers, "Content-Type: application/json");
+  headers = curl_slist_append (headers, "User-Agent: p6a/" PL_VERSION_STRING);
+  headers = curl_slist_append (headers, authorization);
+
+  curl_easy_setopt (curl, CURLOPT_URL, url);
+  curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
+  curl_easy_setopt (curl, CURLOPT_CUSTOMREQUEST, "PATCH");
+  curl_easy_setopt (curl, CURLOPT_POSTFIELDS, bodystr);
+  curl_easy_setopt (curl, CURLOPT_WRITEFUNCTION, plDiscardCallback);
+
+  PL_DEBUG ("--- Api Request ---");
+  PL_DEBUG ("URL: %s", url);
+  PL_DSLOW ("%s", authorization);
+  PL_DSLOW ("%s", bodystr);
+  plEnsureThrottle ();
+  plThrottleAcquire (&throttle);
+  CURLcode res = curl_easy_perform (curl);
+  if (res != CURLE_OK)
+    {
+      PL_ERROR ("Request failed: %s", curl_easy_strerror (res));
+      rc = PL_ENET;
+      goto cleanup_media_update;
+    }
+
+  CURLlong httpcode;
+  curl_easy_getinfo (curl, CURLINFO_RESPONSE_CODE, &httpcode);
+  PL_DEBUG ("--- Api Response (HTTP %ld) ---", httpcode);
+  if (httpcode != 200)
+    {
+      PL_ERROR ("Request failed with HTTP %ld", httpcode);
+      rc = PL_ENET;
+      goto cleanup_media_update;
+    }
+
+cleanup_media_update:
+  curl_slist_free_all (headers);
+  free (bodystr);
+  curl_easy_cleanup (curl);
+
+  return rc;
+}
+
+PLInt
+plApiMediaApprove (const PLChar *base, const PLChar *token,
+                   const PLChar *event, const PLChar *media)
+{
+  if (!base || !token || !event || !media)
+    {
+      PL_ERROR ("Endpoint, token, event, and/or media are invalid");
+      return PL_EARG;
+    }
+
+  CURL *curl = curl_easy_init ();
+  if (!curl)
+    {
+      PL_ERROR ("Failed to initialize curl");
+      return PL_EMEM;
+    }
+#ifdef _WIN32
+  curl_easy_setopt (curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
+#endif
+
+  PLInt rc = PL_EOK;
+
+  PLChar url[URL_MAX];
+  snprintf (url, PL_CHARSMAX (url), "%s/event/%s/media/%s/approve", base,
+            event, media);
+  url[PL_CHARSMAX (url)] = '\0';
+
+  PLChar authorization[AUTHORIZATION_MAX];
+  snprintf (authorization, PL_CHARSMAX (authorization),
+            "Authorization: Bearer %s", token);
+  authorization[PL_CHARSMAX (authorization)] = '\0';
+
+  struct curl_slist *headers = NULL;
+  headers = curl_slist_append (headers, "Accept: application/json");
+  headers = curl_slist_append (headers, "Content-Length: 0");
+  headers = curl_slist_append (headers, "User-Agent: p6a/" PL_VERSION_STRING);
+  headers = curl_slist_append (headers, authorization);
+
+  curl_easy_setopt (curl, CURLOPT_URL, url);
+  curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
+  curl_easy_setopt (curl, CURLOPT_POST, 1L);
+  curl_easy_setopt (curl, CURLOPT_POSTFIELDSIZE, 0L);
+  curl_easy_setopt (curl, CURLOPT_WRITEFUNCTION, plDiscardCallback);
+
+  PL_DEBUG ("--- Api Request ---");
+  PL_DEBUG ("URL: %s", url);
+  PL_DSLOW ("%s", authorization);
+  plEnsureThrottle ();
+  plThrottleAcquire (&throttle);
+  CURLcode res = curl_easy_perform (curl);
+  if (res != CURLE_OK)
+    {
+      PL_ERROR ("Request failed: %s", curl_easy_strerror (res));
+      rc = PL_ENET;
+      goto cleanup_media_approve;
+    }
+
+  CURLlong httpcode;
+  curl_easy_getinfo (curl, CURLINFO_RESPONSE_CODE, &httpcode);
+  PL_DEBUG ("--- Api Response (HTTP %ld) ---", httpcode);
+  if (httpcode != 200)
+    {
+      PL_ERROR ("Request failed with HTTP %ld", httpcode);
+      rc = PL_ENET;
+      goto cleanup_media_approve;
+    }
+
+cleanup_media_approve:
+  curl_slist_free_all (headers);
+  curl_easy_cleanup (curl);
+
+  return rc;
 }

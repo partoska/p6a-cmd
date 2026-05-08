@@ -2,7 +2,7 @@
 
 Manage and sync your event photos from [Partoska](https://www.partoska.com) — right from your terminal.
 
-[![Version](https://img.shields.io/badge/version-1.7.0-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v1.7.0)
+[![Version](https://img.shields.io/badge/version-1.8.0-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v1.8.0)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt)
 
 ## What is this?
@@ -74,6 +74,8 @@ my-photos/
 | `list`     | List events                        |
 | `create`   | Create a new event                 |
 | `update`   | Update an existing event           |
+| `edit`     | Update a media item                |
+| `approve`  | Approve a media item               |
 | `qr`       | Download QR code for an event      |
 | `link`     | Get invite link for an event       |
 | `media`    | List media items for an event      |
@@ -191,8 +193,8 @@ p6a list -o -1 | xargs -I{} p6a qr -e {}
 **Default output columns:**
 
 ```
-NAME                              ID                                    FROM        TO          OWN FAV PUB  GUESTS  MEDIA
-Birthday Party                    12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7  2026-01-05  2026-01-06  yes yes yes       5     42
+NAME                              ID                                    FROM        TO          OWN FAV PUB MOD  GUESTS  MEDIA
+Birthday Party                    12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7  2026-01-05  2026-01-06  yes yes yes  no       5     42
 ```
 
 ### `create` - Create a New Event
@@ -221,8 +223,8 @@ p6a create -n "Birthday Party" -F json | jq '.id'
 On success, the created event is printed in the same table format as `list`:
 
 ```
-NAME                              ID                                    FROM        TO          OWN FAV PUB  GUESTS  MEDIA
-Birthday Party                    12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7  2026-06-01  2026-06-01  yes  no yes       1      0
+NAME              ID                                    FROM        TO          OWN FAV PUB MOD  GUESTS  MEDIA
+Birthday Party    12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7  2026-06-01  2026-06-01  yes  no yes  no       1      0
 
 1 event(s)
 ```
@@ -247,6 +249,8 @@ At least one field to update must be provided.
 - `-P, --private` - Make the event private.
 - `-f, --favorite` - Mark the event as a favorite.
 - `-F, --no-favorite` - Unmark the event as a favorite.
+- `-m, --moderated` - Enable upload moderation (new uploads require approval before becoming visible).
+- `-M, --no-moderated` - Disable upload moderation.
 - `-D, --dir <path>` - Custom config directory (default: `~/.p6a`).
 
 **Examples:**
@@ -263,6 +267,65 @@ p6a update -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 --private
 
 # Rename and make public in one call.
 p6a update -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -n "Summer Party" --public
+```
+
+### `edit` - Update a Media Item
+
+Update properties of a media item within an event.
+
+```bash
+p6a edit -e <event-id> -m <media-id> [options]
+```
+
+At least one field to update must be provided.
+
+**Options:**
+
+- `-e, --event <id>` - Event ID (required).
+- `-m, --media <id>` - Media ID (required).
+- `-f, --favorite` - Mark the media item as a favorite.
+- `-F, --no-favorite` - Unmark the media item as a favorite.
+- `-D, --dir <path>` - Custom config directory (default: `~/.p6a`).
+
+**Examples:**
+
+```bash
+# Mark a media item as favorite.
+p6a edit -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -m 7a8b9c0d-f00d-4a3b-8c5d-e6f700010203 -f
+
+# Unmark a media item as favorite.
+p6a edit -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -m 7a8b9c0d-f00d-4a3b-8c5d-e6f700010203 -F
+
+# Favorite all media you uploaded in an event.
+EID=12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7
+p6a media -e "$EID" -o -1 | xargs -I{} p6a edit -e "$EID" -m {} -f
+```
+
+### `approve` - Approve a Media Item
+
+Approve a media item in a moderated event, making it visible to all guests. Has no effect on non-moderated events. Requires moderator permission.
+
+```bash
+p6a approve -e <event-id> -m <media-id>
+```
+
+**Options:**
+
+- `-e, --event <id>` - Event ID (required).
+- `-m, --media <id>` - Media ID (required).
+- `-D, --dir <path>` - Custom config directory (default: `~/.p6a`).
+
+**Examples:**
+
+```bash
+# Approve a single media item.
+p6a approve -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -m 7a8b9c0d-f00d-4a3b-8c5d-e6f700010203
+
+# Approve all pending media in a moderated event.
+EID=12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7
+p6a media -e "$EID" -F json | \
+  jq -r '.[] | select(.approved == false) | .id' | \
+  xargs -I{} p6a approve -e "$EID" -m {}
 ```
 
 ### `qr` - Download Event QR Code
@@ -358,8 +421,8 @@ p6a media -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -1
 **Default output columns:**
 
 ```
-ID                                    TYPE              TAKEN       UPLOADED    OWN FAV  FAVS
-12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7  image/jpeg        2026-01-05  2026-01-06   no  no     3
+ID                                    TYPE              TAKEN       UPLOADED    OWN FAV  FAVS  APR
+12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7  image/jpeg        2026-01-05  2026-01-06   no  no     3  yes
 ```
 
 ### `download` - Download Event Media

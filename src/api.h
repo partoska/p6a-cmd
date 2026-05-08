@@ -52,6 +52,7 @@ typedef struct PLEvent
   PLInt media;
   PLBool favorite;
   PLBool pub;
+  PLBool moderated;
 } PLEvent;
 
 typedef struct PLEventList
@@ -69,6 +70,7 @@ typedef struct PLMedia
   PLBool owner;
   PLBool favorite;
   PLInt favorites;
+  PLBool approved;
 } PLMedia;
 
 typedef struct PLMediaList
@@ -170,16 +172,18 @@ PLInt plApiQrFetch (const PLChar *base, const PLChar *token,
  * @param name  New name, or NULL to leave unchanged.
  * @param from  New start date, or NULL to leave unchanged.
  * @param to    New end date, or NULL to leave unchanged.
- * @param pub   Public flag: 1 to set public, 0 to set private, -1 to leave
- *              unchanged.
- * @param fav   Favorite flag: 1 to favorite, 0 to unfavorite, -1 to leave
- *              unchanged.
+ * @param pub   Public flag: 1 to set public, 0 to set private,
+ *              -1 no change.
+ * @param fav   Favorite flag: 1 to favorite, 0 to unfavorite,
+ *              -1 no change.
+ * @param mod   Moderated flag: 1 to enable moderation, 0 to disable,
+ *              -1 no change.
  * @return PL_EOK on success, or a PL_E* error code on failure.
  */
 PLInt plApiEventUpdate (const PLChar *base, const PLChar *token,
                         const PLChar *id, const PLChar *name,
                         const PLChar *from, const PLChar *to, PLInt pub,
-                        PLInt fav);
+                        PLInt fav, PLInt mod);
 
 /**
  * Fetches the primary invite link URL for an event.
@@ -193,5 +197,30 @@ PLInt plApiEventUpdate (const PLChar *base, const PLChar *token,
  */
 PLInt plApiLinkFetch (PLChar *link, PLSize size, const PLChar *base,
                       const PLChar *token, const PLChar *event);
+
+/**
+ * Partially updates a media item via PATCH.
+ *
+ * @param base  API base URL.
+ * @param token OAuth bearer token.
+ * @param event UUID of the event.
+ * @param media UUID of the media item.
+ * @param fav   1 to mark as favorite, 0 to unfavorite, -1 no change.
+ * @return PL_EOK on success, or a PL_E* error code on failure.
+ */
+PLInt plApiMediaUpdate (const PLChar *base, const PLChar *token,
+                        const PLChar *event, const PLChar *media, PLInt fav);
+
+/**
+ * Approves a media item in a moderated event via POST.
+ *
+ * @param base  API base URL.
+ * @param token OAuth bearer token.
+ * @param event UUID of the event.
+ * @param media UUID of the media item.
+ * @return PL_EOK on success, or a PL_E* error code on failure.
+ */
+PLInt plApiMediaApprove (const PLChar *base, const PLChar *token,
+                         const PLChar *event, const PLChar *media);
 
 #endif
