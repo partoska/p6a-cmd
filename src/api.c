@@ -1247,6 +1247,117 @@ cleanup_media_update:
 }
 
 PLInt
+plApiCardFetch (const PLChar *base, const PLChar *token, const PLChar *event,
+                const PLChar *path, const PLChar *design, const PLChar *locale,
+                const PLChar *layout, const PLChar *paper, PLBool jpg,
+                PLBool nobg)
+{
+  if (!base || !token || !event || !path || !design)
+    {
+      PL_ERROR ("Endpoint, token, event, path, and/or design are invalid");
+      return PL_EARG;
+    }
+
+  CURL *curl = curl_easy_init ();
+  if (!curl)
+    {
+      PL_ERROR ("Failed to initialize curl");
+      return PL_EMEM;
+    }
+#ifdef _WIN32
+  curl_easy_setopt (curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
+#endif
+
+  PLFile *file = plFileOpen (path, "wb");
+  if (!file)
+    {
+      PL_ERROR ("Failed to open file for writing: %s", path);
+      curl_easy_cleanup (curl);
+      return PL_EFS;
+    }
+
+  PLInt result = PL_EOK;
+
+  PLChar url[URL_MAX];
+  PLInt off = snprintf (url, sizeof (url), "%s/event/%s/card?design=%s", base,
+                        event, design);
+  if (off > 0 && locale != NULL && (PLSize)off < sizeof (url) - 1)
+    {
+      off += snprintf (url + off, sizeof (url) - (PLSize)off, "&locale=%s",
+                       locale);
+    }
+  if (off > 0 && layout != NULL && (PLSize)off < sizeof (url) - 1)
+    {
+      off += snprintf (url + off, sizeof (url) - (PLSize)off, "&layout=%s",
+                       layout);
+    }
+  if (off > 0 && paper != NULL && (PLSize)off < sizeof (url) - 1)
+    {
+      off += snprintf (url + off, sizeof (url) - (PLSize)off, "&paper=%s",
+                       paper);
+    }
+  if (off > 0 && jpg && (PLSize)off < sizeof (url) - 1)
+    {
+      off += snprintf (url + off, sizeof (url) - (PLSize)off, "&format=jpg");
+    }
+  if (off > 0 && nobg && (PLSize)off < sizeof (url) - 1)
+    {
+      off += snprintf (url + off, sizeof (url) - (PLSize)off,
+                       "&background=false");
+    }
+  PL_UNUSED (off);
+  url[PL_CHARSMAX (url)] = '\0';
+
+  PLChar authorization[AUTHORIZATION_MAX];
+  snprintf (authorization, PL_CHARSMAX (authorization),
+            "Authorization: Bearer %s", token);
+  authorization[PL_CHARSMAX (authorization)] = '\0';
+
+  struct curl_slist *headers = NULL;
+  headers = curl_slist_append (headers, "User-Agent: p6a/" PL_VERSION_STRING);
+  headers = curl_slist_append (headers, authorization);
+
+  curl_easy_setopt (curl, CURLOPT_URL, url);
+  curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
+  curl_easy_setopt (curl, CURLOPT_WRITEFUNCTION, plWriteFileCallback);
+  curl_easy_setopt (curl, CURLOPT_WRITEDATA, file);
+
+  PL_DEBUG ("--- Api Request ---");
+  PL_DEBUG ("URL: %s", url);
+  PL_DSLOW ("%s", authorization);
+  plEnsureThrottle ();
+  plThrottleAcquire (&throttle);
+  CURLcode res = curl_easy_perform (curl);
+  if (res != CURLE_OK)
+    {
+      PL_ERROR ("Request failed: %s", curl_easy_strerror (res));
+      result = PL_ENET;
+      goto cleanup;
+    }
+
+  CURLlong httpcode;
+  curl_easy_getinfo (curl, CURLINFO_RESPONSE_CODE, &httpcode);
+  PL_DEBUG ("--- Api Response (HTTP %ld) ---", httpcode);
+  if (httpcode != 200)
+    {
+      PL_ERROR ("Request failed with HTTP %ld", httpcode);
+      result = PL_ENET;
+      goto cleanup;
+    }
+
+cleanup:
+  curl_slist_free_all (headers);
+  plFileClose (file);
+  curl_easy_cleanup (curl);
+  if (result != PL_EOK)
+    {
+      remove (path);
+    }
+
+  return result;
+}
+
+PLInt
 plApiMediaApprove (const PLChar *base, const PLChar *token,
                    const PLChar *event, const PLChar *media)
 {

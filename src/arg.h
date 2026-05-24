@@ -62,6 +62,7 @@ typedef enum
   PL_CDOWNLOAD,
   PL_CEDIT,
   PL_CAPPROVE,
+  PL_CCARD,
   PL_CHELP,
   PL_CVERSION,
 
@@ -72,10 +73,13 @@ typedef enum
 {
   PL_FOWN = 0x00000001,
   PL_FFAV = 0x00000002,
-  PL_FSVG = 0x00000004,
   PL_FFMTJSON = 0x00000010,
   PL_FFMTCSV = 0x00000020,
   PL_FFMTONE = 0x00000030,
+  PL_FFMTSVG = 0x00000040,
+  PL_FFMTJPG = 0x00000050,
+  PL_FFMTPNG = 0x00000060,
+  PL_FFMTPDF = 0x00000070,
   PL_FFMTMASK = 0x000000F0,
   PL_FPUBFALSE = 0x00000100,
   PL_FPUBTRUE = 0x00000200,
@@ -85,7 +89,8 @@ typedef enum
   PL_FFAVMASK = 0x00000C00,
   PL_FMODFALSE = 0x00001000,
   PL_FMODTRUE = 0x00002000,
-  PL_FMODMASK = 0x00003000
+  PL_FMODMASK = 0x00003000,
+  PL_FNOBG = 0x00004000
 } PLArgFlag;
 
 typedef enum
@@ -93,7 +98,11 @@ typedef enum
   PL_FMTPLAIN,
   PL_FMTJSON,
   PL_FMTCSV,
-  PL_FMTONE
+  PL_FMTONE,
+  PL_FMTSVG,
+  PL_FMTJPG,
+  PL_FMTPNG,
+  PL_FMTPDF
 } PLArgFmt;
 
 typedef struct PLArgs
@@ -155,6 +164,15 @@ typedef struct PLArgs
       const PLChar *event;
       const PLChar *media;
     } approve;
+    struct
+    {
+      const PLChar *event;
+      const PLChar *out;
+      const PLChar *design;
+      const PLChar *locale;
+      const PLChar *layout;
+      const PLChar *paper;
+    } card;
   } c;
 } PLArg;
 

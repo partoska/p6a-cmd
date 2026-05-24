@@ -4,4 +4,5 @@ This installer will install p6a on your Mac.
 
 p6a lets you authenticate with Partoska.com, list, create, and update
 events, synchronize event photos to a local directory, list and download
-event media, and retrieve invite links and QR codes from the command line.
+event media, retrieve invite links, and download QR codes with share cards
+from the command line.

@@ -27,7 +27,7 @@
 
 # Project configuration.
 PROJECT = p6a
-VERSION = 1.8.0
+VERSION = 1.9.0
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
 
@@ -57,6 +57,7 @@ SRCS = $(SRCDIR)/hash.c \
        $(SRCDIR)/sync.c \
        $(SRCDIR)/list.c \
        $(SRCDIR)/qr.c \
+       $(SRCDIR)/card.c \
        $(SRCDIR)/link.c \
        $(SRCDIR)/create.c \
        $(SRCDIR)/update.c \

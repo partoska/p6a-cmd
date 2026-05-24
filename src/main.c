@@ -32,6 +32,7 @@
 
 #include "arg.h"
 #include "approve.h"
+#include "card.h"
 #include "config.h"
 #include "create.h"
 #include "download.h"
@@ -981,6 +982,95 @@ plDoEdit (const PLChar *dir, const PLChar *event, const PLChar *media,
 }
 
 static PLInt
+plDoCard (const PLChar *dir, const PLChar *event, const PLChar *output,
+          const PLChar *design, const PLChar *locale, const PLChar *layout,
+          const PLChar *paper, PLBool jpg, PLBool nobg)
+{
+  if (!event)
+    {
+      PL_ERROR ("Event ID is required");
+      return PL_EARG;
+    }
+
+  if (!design)
+    {
+      PL_ERROR ("Card design is required");
+      return PL_EARG;
+    }
+
+  PLChar workdir[WORKDIR_MAX];
+  if (dir != NULL)
+    {
+      strncpy (workdir, dir, PL_CHARSMAX (workdir));
+      workdir[PL_CHARSMAX (workdir)] = '\0';
+    }
+  else
+    {
+      workdir[0] = '\0';
+    }
+
+  PLInt result = plPrepareWorkdir (workdir, sizeof (workdir));
+  if (result != PL_EOK)
+    {
+      PL_ERROR ("Failed to prepare working directory");
+      return result;
+    }
+
+  PLChar ini[sizeof (workdir) + sizeof (PL_CONFIG_INI)];
+  plGetIniPath (ini, sizeof (ini), workdir);
+
+  PLCfg *config = plCfgInit ();
+  if (!config)
+    {
+      PL_ERROR ("Failed to initialize configuration");
+      return PL_EMEM;
+    }
+
+  result = plCfgLoad (config, ini);
+  if (result != PL_EOK)
+    {
+      switch (result)
+        {
+        case PL_EFS:
+          PL_ERROR ("Missing configuration, please login first");
+          break;
+        default:
+          PL_ERROR ("Failed to load configuration");
+          break;
+        }
+
+      plCfgDestroy (config);
+      return result;
+    }
+
+  if (!plCfgCheck (config))
+    {
+      PL_ERROR ("Invalid configuration, please login again");
+      plCfgDestroy (config);
+      return PL_EARG;
+    }
+
+  curl_global_init (CURL_GLOBAL_DEFAULT);
+
+  PLChar *bearer = plOAuthGet (config, ini);
+  if (!bearer)
+    {
+      curl_global_cleanup ();
+      plCfgDestroy (config);
+      return PL_ENET;
+    }
+
+  result = plCard (config->glob->endpoint, bearer, event, output, design,
+                   locale, layout, paper, jpg, nobg);
+
+  free (bearer);
+  curl_global_cleanup ();
+  plCfgDestroy (config);
+
+  return result;
+}
+
+static PLInt
 plDoApprove (const PLChar *dir, const PLChar *event, const PLChar *media)
 {
   if (!event || !media)
@@ -1084,6 +1174,7 @@ plDoHelp (void)
   PL_INFO ("  edit                Update a media item");
   PL_INFO ("  approve             Approve a media item in a moderated event");
   PL_INFO ("  qr                  Download QR code for an event");
+  PL_INFO ("  card                Download share card (PDF/JPG) for an event");
   PL_INFO ("  link                Get invite link for an event");
   PL_INFO ("  media               List media items for an event");
   PL_INFO ("  download            Download media for an event");
@@ -1155,7 +1246,21 @@ plDoHelp (void)
   PL_INFO ("  -e, --event <id>    Event ID (required)");
   PL_INFO (
       "  -t, --target <file> Output file path (default: <id>-qr.png/svg)");
-  PL_INFO ("  -s, --svg           Request SVG format instead of PNG");
+  PL_INFO ("  -F, --format <fmt>  Output format: png (default), svg");
+  PL_INFO ("");
+  PL_INFO ("Share card options:");
+  PL_INFO (
+      "  -D, --dir <path>    Specify working directory (default: ~/.p6a)");
+  PL_INFO ("  -e, --event <id>    Event ID (required)");
+  PL_INFO (
+      "  -d, --design <name> Card design: bday, tech, match, forest (required)");
+  PL_INFO (
+      "  -t, --target <file> Output file path (default: <id>-card.pdf/jpg)");
+  PL_INFO ("  -l, --locale <loc>  Language: en (default), cs");
+  PL_INFO ("  -L, --layout <lay>  Layout: single (default), business");
+  PL_INFO ("  -p, --paper <pap>   Paper size: a4 (default), letter");
+  PL_INFO ("  -F, --format <fmt>  Output format: pdf (default), jpg");
+  PL_INFO ("  -b, --no-background White background (omits colour fill)");
   PL_INFO ("");
   PL_INFO ("Invite link options:");
   PL_INFO (
@@ -1199,7 +1304,11 @@ plDoHelp (void)
   PL_INFO ("  p6a sync -t ./photos -f");
   PL_INFO ("  p6a sync --target ./media --owner-only");
   PL_INFO ("  p6a qr -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7");
-  PL_INFO ("  p6a qr --event 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -t qr.png");
+  PL_INFO (
+      "  p6a qr --event 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -F svg -t qr.svg");
+  PL_INFO ("  p6a card -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -d bday");
+  PL_INFO ("  p6a card -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -d tech -F jpg "
+           "-t card.jpg");
   PL_INFO ("  p6a link -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7");
   PL_INFO ("  p6a media -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7");
   PL_INFO ("  p6a media -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -F json");
@@ -1300,7 +1409,7 @@ main (PLInt argc, PLChar **argv)
     case PL_CQR:
       {
         if (plDoQr (args.dir, args.c.qr.event, args.c.qr.out,
-                    (args.flags & PL_FSVG) != 0)
+                    PL_ARGFMT (args.flags) == PL_FMTSVG)
             != PL_EOK)
           {
             return EXIT_FAILURE;
@@ -1349,6 +1458,19 @@ main (PLInt argc, PLChar **argv)
     case PL_CAPPROVE:
       {
         if (plDoApprove (args.dir, args.c.approve.event, args.c.approve.media)
+            != PL_EOK)
+          {
+            return EXIT_FAILURE;
+          };
+        break;
+      }
+    case PL_CCARD:
+      {
+        if (plDoCard (args.dir, args.c.card.event, args.c.card.out,
+                      args.c.card.design, args.c.card.locale,
+                      args.c.card.layout, args.c.card.paper,
+                      PL_ARGFMT (args.flags) == PL_FMTJPG,
+                      (args.flags & PL_FNOBG) != 0)
             != PL_EOK)
           {
             return EXIT_FAILURE;

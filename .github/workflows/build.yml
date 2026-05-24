@@ -29,7 +29,7 @@ name: Build
 on: [push]
 jobs:
   build-linux-amd64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -45,6 +45,24 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: p6a_linux_amd64
+          path: build/src/p6a
+  build-linux-arm64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake libcurl4-openssl-dev
+      - name: Configure CMake
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DWITH_SANITIZERS=ON -DWITH_VERBOSE_DEBUG=ON -DWITH_TESTS=ON -DCMAKE_VERBOSE_MAKEFILE=ON
+      - name: Build
+        run: cmake --build build --parallel 1
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: p6a_linux_arm64
           path: build/src/p6a
   build-windows:
     runs-on: windows-latest

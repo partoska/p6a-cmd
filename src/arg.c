@@ -349,11 +349,11 @@ plArgParseQr (PLArg *args, PLInt argc, PLChar **argv)
   static struct option opts[] = { { "dir", required_argument, NULL, 'D' },
                                   { "event", required_argument, NULL, 'e' },
                                   { "target", required_argument, NULL, 't' },
-                                  { "svg", no_argument, NULL, 's' },
+                                  { "format", required_argument, NULL, 'F' },
                                   { NULL, 0, NULL, 0 } };
   PLInt c;
   opterr = 0;
-  while ((c = getopt_long (argc, argv, "D:e:t:s", opts, NULL)) != -1)
+  while ((c = getopt_long (argc, argv, "D:e:t:F:", opts, NULL)) != -1)
     {
       switch (c)
         {
@@ -372,9 +372,20 @@ plArgParseQr (PLArg *args, PLInt argc, PLChar **argv)
           args->c.qr.out = optarg;
           break;
 
-        case 's':
-          PL_DSLOW ("Arg: --svg");
-          args->flags |= PL_FSVG;
+        case 'F':
+          PL_DSLOW ("Arg: --format=%s", optarg);
+          if (strcmp (optarg, "svg") == 0)
+            {
+              args->flags = (args->flags & ~(PLDword)PL_FFMTMASK) | PL_FFMTSVG;
+            }
+          else if (strcmp (optarg, "png") == 0)
+            {
+              args->flags = (args->flags & ~(PLDword)PL_FFMTMASK) | PL_FFMTPNG;
+            }
+          else
+            {
+              return PL_EARG;
+            }
           break;
 
         default:
@@ -570,6 +581,94 @@ plArgParseEdit (PLArg *args, PLInt argc, PLChar **argv)
 }
 
 static PLInt
+plArgParseCard (PLArg *args, PLInt argc, PLChar **argv)
+{
+  static struct option opts[] = { { "dir", required_argument, NULL, 'D' },
+                                  { "event", required_argument, NULL, 'e' },
+                                  { "design", required_argument, NULL, 'd' },
+                                  { "target", required_argument, NULL, 't' },
+                                  { "locale", required_argument, NULL, 'l' },
+                                  { "layout", required_argument, NULL, 'L' },
+                                  { "paper", required_argument, NULL, 'p' },
+                                  { "format", required_argument, NULL, 'F' },
+                                  { "no-background", no_argument, NULL, 'b' },
+                                  { NULL, 0, NULL, 0 } };
+  PLInt c;
+  opterr = 0;
+  while ((c = getopt_long (argc, argv, "D:e:d:t:l:L:p:F:b", opts, NULL)) != -1)
+    {
+      switch (c)
+        {
+        case 'D':
+          PL_DSLOW ("Arg: --dir=%s", optarg);
+          args->dir = optarg;
+          break;
+
+        case 'e':
+          PL_DSLOW ("Arg: --event=%s", optarg);
+          args->c.card.event = optarg;
+          break;
+
+        case 'd':
+          PL_DSLOW ("Arg: --design=%s", optarg);
+          args->c.card.design = optarg;
+          break;
+
+        case 't':
+          PL_DSLOW ("Arg: --target=%s", optarg);
+          args->c.card.out = optarg;
+          break;
+
+        case 'l':
+          PL_DSLOW ("Arg: --locale=%s", optarg);
+          args->c.card.locale = optarg;
+          break;
+
+        case 'L':
+          PL_DSLOW ("Arg: --layout=%s", optarg);
+          args->c.card.layout = optarg;
+          break;
+
+        case 'p':
+          PL_DSLOW ("Arg: --paper=%s", optarg);
+          args->c.card.paper = optarg;
+          break;
+
+        case 'F':
+          PL_DSLOW ("Arg: --format=%s", optarg);
+          if (strcmp (optarg, "jpg") == 0)
+            {
+              args->flags = (args->flags & ~(PLDword)PL_FFMTMASK) | PL_FFMTJPG;
+            }
+          else if (strcmp (optarg, "pdf") == 0)
+            {
+              args->flags = (args->flags & ~(PLDword)PL_FFMTMASK) | PL_FFMTPDF;
+            }
+          else
+            {
+              return PL_EARG;
+            }
+          break;
+
+        case 'b':
+          PL_DSLOW ("Arg: --no-background");
+          args->flags |= PL_FNOBG;
+          break;
+
+        default:
+          return PL_EARG;
+        }
+    }
+
+  if (args->c.card.event == NULL || args->c.card.design == NULL)
+    {
+      return PL_EARG;
+    }
+
+  return PL_EOK;
+}
+
+static PLInt
 plArgParseApprove (PLArg *args, PLInt argc, PLChar **argv)
 {
   static struct option opts[] = { { "dir", required_argument, NULL, 'D' },
@@ -734,6 +833,11 @@ plArgParse (PLArg *args, PLInt argc, PLChar **argv)
     {
       args->cmd = PL_CAPPROVE;
       return plArgParseApprove (args, argc - 1, &argv[1]);
+    }
+  else if (strcmp (cmd, "card") == 0)
+    {
+      args->cmd = PL_CCARD;
+      return plArgParseCard (args, argc - 1, &argv[1]);
     }
   else
     {

@@ -322,22 +322,83 @@ testQr (void)
   PLArg args;
   PLChar *argv[] = { "p6a", "qr", "-e", "event-uuid" };
   PLChar *argvOut[] = { "p6a", "qr", "-e", "event-uuid", "-t", "out.png" };
-  PLChar *argvSvg[] = { "p6a", "qr", "-e", "event-uuid", "--svg" };
+  PLChar *argvSvg[] = { "p6a", "qr", "-e", "event-uuid", "-F", "svg" };
+  PLChar *argvPng[] = { "p6a", "qr", "-e", "event-uuid",
+                        "--format", "png" };
+  PLChar *argvBadFmt[] = { "p6a", "qr", "-e", "event-uuid", "-F", "pdf" };
+  PLChar *argvOldSvg[] = { "p6a", "qr", "-e", "event-uuid", "--svg" };
   PLChar *argvNone[] = { "p6a", "qr" };
 
   PL_ASSERT_EQ (parse (&args, 4, argv), PL_EOK);
   PL_ASSERT_EQ (args.cmd, PL_CQR);
   PL_ASSERT_STR_EQ (args.c.qr.event, "event-uuid");
   PL_ASSERT (args.c.qr.out == NULL);
-  PL_ASSERT_EQ (args.flags & PL_FSVG, (PLDword)0);
+  PL_ASSERT_EQ (PL_ARGFMT (args.flags), PL_FMTPLAIN);
 
   PL_ASSERT_EQ (parse (&args, 6, argvOut), PL_EOK);
   PL_ASSERT_STR_EQ (args.c.qr.out, "out.png");
 
-  PL_ASSERT_EQ (parse (&args, 5, argvSvg), PL_EOK);
-  PL_ASSERT (args.flags & PL_FSVG);
+  PL_ASSERT_EQ (parse (&args, 6, argvSvg), PL_EOK);
+  PL_ASSERT_EQ (PL_ARGFMT (args.flags), PL_FMTSVG);
+
+  PL_ASSERT_EQ (parse (&args, 6, argvPng), PL_EOK);
+  PL_ASSERT_EQ (PL_ARGFMT (args.flags), PL_FMTPNG);
+
+  PL_ASSERT_EQ (parse (&args, 6, argvBadFmt), PL_EARG);
+  PL_ASSERT_EQ (parse (&args, 5, argvOldSvg), PL_EARG);
 
   PL_ASSERT_EQ (parse (&args, 2, argvNone), PL_EARG);
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Tests - card
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+static void
+testCard (void)
+{
+  PLArg args;
+  PLChar *argv[] = { "p6a", "card", "-e", "event-uuid", "-d", "bday" };
+  PLChar *argvOpts[]
+      = { "p6a",     "card",      "--event",  "event-uuid", "--design",
+          "forest",  "--target",  "card.jpg", "--locale",   "cs",
+          "--layout", "business", "--paper",   "letter",     "--format",
+          "jpg",     "--no-background" };
+  PLChar *argvPdf[] = { "p6a", "card", "-e", "event-uuid",
+                        "-d",  "tech", "-F", "pdf" };
+  PLChar *argvBadFmt[] = { "p6a", "card", "-e", "event-uuid",
+                           "-d",  "tech", "-F", "svg" };
+  PLChar *argvNoEvent[] = { "p6a", "card", "-d", "bday" };
+  PLChar *argvNoDesign[] = { "p6a", "card", "-e", "event-uuid" };
+
+  PL_ASSERT_EQ (parse (&args, 6, argv), PL_EOK);
+  PL_ASSERT_EQ (args.cmd, PL_CCARD);
+  PL_ASSERT_STR_EQ (args.c.card.event, "event-uuid");
+  PL_ASSERT_STR_EQ (args.c.card.design, "bday");
+  PL_ASSERT (args.c.card.out == NULL);
+  PL_ASSERT (args.c.card.locale == NULL);
+  PL_ASSERT (args.c.card.layout == NULL);
+  PL_ASSERT (args.c.card.paper == NULL);
+  PL_ASSERT_EQ (PL_ARGFMT (args.flags), PL_FMTPLAIN);
+  PL_ASSERT_EQ (args.flags & PL_FNOBG, (PLDword)0);
+
+  PL_ASSERT_EQ (parse (&args, 17, argvOpts), PL_EOK);
+  PL_ASSERT_EQ (args.cmd, PL_CCARD);
+  PL_ASSERT_STR_EQ (args.c.card.event, "event-uuid");
+  PL_ASSERT_STR_EQ (args.c.card.design, "forest");
+  PL_ASSERT_STR_EQ (args.c.card.out, "card.jpg");
+  PL_ASSERT_STR_EQ (args.c.card.locale, "cs");
+  PL_ASSERT_STR_EQ (args.c.card.layout, "business");
+  PL_ASSERT_STR_EQ (args.c.card.paper, "letter");
+  PL_ASSERT_EQ (PL_ARGFMT (args.flags), PL_FMTJPG);
+  PL_ASSERT (args.flags & PL_FNOBG);
+
+  PL_ASSERT_EQ (parse (&args, 8, argvPdf), PL_EOK);
+  PL_ASSERT_EQ (PL_ARGFMT (args.flags), PL_FMTPDF);
+
+  PL_ASSERT_EQ (parse (&args, 8, argvBadFmt), PL_EARG);
+  PL_ASSERT_EQ (parse (&args, 4, argvNoEvent), PL_EARG);
+  PL_ASSERT_EQ (parse (&args, 4, argvNoDesign), PL_EARG);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -524,6 +585,7 @@ main (void)
   PL_RUN (testCreate);
   PL_RUN (testUpdate);
   PL_RUN (testQr);
+  PL_RUN (testCard);
   PL_RUN (testLink);
   PL_RUN (testMedia);
   PL_RUN (testDownload);

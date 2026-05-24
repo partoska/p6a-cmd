@@ -2,7 +2,7 @@
 
 Manage and sync your event photos from [Partoska](https://www.partoska.com) — right from your terminal.
 
-[![Version](https://img.shields.io/badge/version-1.8.0-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v1.8.0)
+[![Version](https://img.shields.io/badge/version-1.9.0-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v1.9.0)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt)
 
 ## What is this?
@@ -77,6 +77,7 @@ my-photos/
 | `edit`     | Update a media item                |
 | `approve`  | Approve a media item               |
 | `qr`       | Download QR code for an event      |
+| `card`     | Download share card for an event   |
 | `link`     | Get invite link for an event       |
 | `media`    | List media items for an event      |
 | `download` | Download media for an event        |
@@ -340,7 +341,7 @@ p6a qr -e <id>
 
 - `-e, --event <id>` - Event ID (required).
 - `-t, --target <file>` - Output file path (default: `<id>-qr.png` or `<id>-qr.svg`).
-- `-s, --svg` - Request SVG format instead of PNG.
+- `-F, --format <fmt>` - Output format: `png` (default), `svg`.
 - `-D, --dir <path>` - Custom config directory (default: `~/.p6a`).
 
 **Examples:**
@@ -350,10 +351,49 @@ p6a qr -e <id>
 p6a qr -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7
 
 # Download QR code as SVG.
-p6a qr -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 --svg
+p6a qr -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -F svg
 
 # Download with a custom output path.
 p6a qr --event 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 --target my-event-qr.png
+```
+
+### `card` - Download Event Share Card
+
+Download a printable share card for an event as a PDF or JPEG. The card contains the event's QR code and is suitable for printing on table stands, posters, or handouts. Requires organizer (admin) access.
+
+```bash
+p6a card -e <id> -d <design>
+```
+
+**Options:**
+
+- `-e, --event <id>` - Event ID (required).
+- `-d, --design <name>` - Card design theme (required): `bday`, `tech`, `match`, `forest`.
+- `-t, --target <file>` - Output file path (default: `<id>-card.pdf` or `<id>-card.jpg`).
+- `-F, --format <fmt>` - Output format: `pdf` (default), `jpg`.
+- `-l, --locale <loc>` - Language for card text: `en` (default), `cs`.
+- `-L, --layout <lay>` - Card layout: `single` (default, one large card per page), `business` (business-card-sized tiles).
+- `-p, --paper <pap>` - Paper size: `a4` (default), `letter`.
+- `-b, --no-background` - White background, suitable for black-and-white printing.
+- `-D, --dir <path>` - Custom config directory (default: `~/.p6a`).
+
+**Examples:**
+
+```bash
+# Download a birthday-themed share card as PDF.
+p6a card -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -d bday
+
+# Download as JPEG with a custom output path.
+p6a card -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -d tech -F jpg -t card.jpg
+
+# Business-card layout on letter paper, Czech locale.
+p6a card -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -d forest -L business -p letter -l cs
+
+# White background for black-and-white printing.
+p6a card -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -d match --no-background
+
+# Generate share cards for all your events.
+p6a list -o -1 | xargs -I{} p6a card -e {} -d bday
 ```
 
 ### `link` - Get Event Invite Link

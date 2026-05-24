@@ -223,4 +223,25 @@ PLInt plApiMediaUpdate (const PLChar *base, const PLChar *token,
 PLInt plApiMediaApprove (const PLChar *base, const PLChar *token,
                          const PLChar *event, const PLChar *media);
 
+/**
+ * Downloads the share card for an event as a PDF or JPEG.
+ *
+ * @param base   API base URL.
+ * @param token  OAuth bearer token.
+ * @param event  UUID of the event.
+ * @param path   Destination file path.
+ * @param design Card design theme (bday, tech, match, forest).
+ * @param locale Language for card text (en, cs), or NULL for server default.
+ * @param layout Card layout (single, business), or NULL for server default.
+ * @param paper  Paper size (a4, letter), or NULL for server default.
+ * @param jpg    When true, requests JPEG format instead of PDF.
+ * @param nobg   When true, requests a white background.
+ * @return PL_EOK on success, or a PL_E* error code on failure.
+ */
+PLInt plApiCardFetch (const PLChar *base, const PLChar *token,
+                      const PLChar *event, const PLChar *path,
+                      const PLChar *design, const PLChar *locale,
+                      const PLChar *layout, const PLChar *paper, PLBool jpg,
+                      PLBool nobg);
+
 #endif
