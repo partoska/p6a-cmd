@@ -44,7 +44,7 @@ typedef struct PLThrottle
   PLDword tokens;   /* Current credit in millis. */
   PLDword capacity; /* Max credit (capacity * interval). */
   PLDword interval; /* Millis per token. */
-  PLLong last;      /* Last update timestamp (ms, CLOCK_MONOTONIC). */
+  PLLong last;      /* Last monotonic update timestamp in milliseconds. */
 } PLThrottle;
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *

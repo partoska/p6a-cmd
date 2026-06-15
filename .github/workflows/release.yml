@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y cmake libcurl4-openssl-dev rpm
       - name: Configure CMake
@@ -47,12 +47,12 @@ jobs:
       - name: Package
         run: cpack --config build/CPackConfig.cmake
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: p6a_linux_amd64
           path: build/src/p6a
       - name: Upload packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: packages_linux_amd64
           path: dist/
@@ -60,7 +60,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y cmake libcurl4-openssl-dev rpm
       - name: Configure CMake
@@ -70,20 +70,20 @@ jobs:
       - name: Package
         run: cpack --config build/CPackConfig.cmake
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: p6a_linux_arm64
           path: build/src/p6a
       - name: Upload packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: packages_linux_arm64
           path: dist/
-  build-windows:
-    runs-on: windows-latest
+  build-windows-amd64:
+    runs-on: windows-2025
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install dependencies
         uses: msys2/setup-msys2@v2
         with:
@@ -116,20 +116,61 @@ jobs:
           export PATH="$(cygpath "$WIX")/bin:$PATH"
           cpack --config build/CPackConfig.cmake -G WIX
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: p6a_windows_amd64
           path: build/src/p6a.exe
       - name: Upload packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: packages_windows_amd64
+          path: dist/
+  build-windows-arm64:
+    runs-on: windows-11-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Install dependencies
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANGARM64
+          cache: true
+          update: true
+          install: >-
+            mingw-w64-clang-aarch64-clang
+            mingw-w64-clang-aarch64-cmake
+            mingw-w64-clang-aarch64-curl
+            mingw-w64-clang-aarch64-ninja
+            mingw-w64-clang-aarch64-pkgconf
+      - name: Configure CMake
+        shell: msys2 {0}
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWITH_SANITIZERS=OFF -DWITH_VERBOSE_DEBUG=OFF -DWITH_TESTS=OFF -DCMAKE_VERBOSE_MAKEFILE=ON -DCURL_USE_STATIC_LIBS=ON
+      - name: Build
+        shell: msys2 {0}
+        run: cmake --build build --parallel 1
+      - name: Package (ZIP)
+        shell: msys2 {0}
+        run: cpack --config build/CPackConfig.cmake -G ZIP
+      - name: Package (NSIS)
+        shell: msys2 {0}
+        run: |
+          VERSION=$(grep "CMAKE_PROJECT_VERSION:STATIC" build/CMakeCache.txt | cut -d= -f2)
+          cpack --config build/CPackConfig.cmake -G NSIS -D CPACK_PACKAGE_FILE_NAME="p6a_${VERSION}_windows_arm64_setup"
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: p6a_windows_arm64
+          path: build/src/p6a.exe
+      - name: Upload packages
+        uses: actions/upload-artifact@v6
+        with:
+          name: packages_windows_arm64
           path: dist/
   build-macos:
     runs-on: macos-14
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install dependencies
         run: brew install curl pkg-config
       - name: Configure CMake
@@ -139,23 +180,23 @@ jobs:
       - name: Package
         run: cpack --config build/CPackConfig.cmake
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: p6a_darwin_universal
           path: build/src/p6a
       - name: Upload packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: packages_darwin_universal
           path: dist/
   release:
-    needs: [build-linux-amd64, build-linux-arm64, build-windows, build-macos]
+    needs: [build-linux-amd64, build-linux-arm64, build-windows-amd64, build-windows-arm64, build-macos]
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           path: artifacts/
       - name: Create release
@@ -169,12 +210,13 @@ jobs:
           cp artifacts/p6a_linux_amd64/p6a p6a_${VERSION}_linux_amd64
           cp artifacts/p6a_linux_arm64/p6a p6a_${VERSION}_linux_arm64
           cp artifacts/p6a_windows_amd64/p6a.exe p6a_${VERSION}_windows_amd64.exe
+          cp artifacts/p6a_windows_arm64/p6a.exe p6a_${VERSION}_windows_arm64.exe
           cp artifacts/p6a_darwin_universal/p6a p6a_${VERSION}_darwin_universal
       - name: Upload binaries to release
         run: |
           VERSION=${{ github.ref_name }}
           VERSION=${VERSION#v}
-          gh release upload ${{ github.ref_name }} p6a_${VERSION}_linux_amd64 p6a_${VERSION}_linux_arm64 p6a_${VERSION}_windows_amd64.exe p6a_${VERSION}_darwin_universal --clobber
+          gh release upload ${{ github.ref_name }} p6a_${VERSION}_linux_amd64 p6a_${VERSION}_linux_arm64 p6a_${VERSION}_windows_amd64.exe p6a_${VERSION}_windows_arm64.exe p6a_${VERSION}_darwin_universal --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Upload packages to release

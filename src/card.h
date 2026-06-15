@@ -49,7 +49,7 @@
  * @param bearer OAuth bearer token.
  * @param event  UUID of the event.
  * @param output Destination file path, or NULL to use the default name.
- * @param design Card design theme (bday, tech, match, forest).
+ * @param design Card design theme (bday, tech, match, forest, gold, romantic, neon).
  * @param locale Language for card text (en, cs), or NULL for server default.
  * @param layout Card layout (single, business), or NULL for server default.
  * @param paper  Paper size (a4, letter), or NULL for server default.

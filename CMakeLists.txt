@@ -26,7 +26,7 @@
 #
 
 cmake_minimum_required(VERSION 3.13)
-project(p6a VERSION 1.9.0)
+project(p6a VERSION 1.9.4)
 
 # P6A build.
 add_subdirectory(src)
@@ -49,7 +49,14 @@ set(CPACK_STRIP_FILES TRUE)
 set(CPACK_OUTPUT_FILE_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/dist")
 
 if(WIN32)
-  set(CPACK_PACKAGE_FILE_NAME "p6a_${PROJECT_VERSION}_windows_amd64")
+  if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64" OR "$ENV{MSYSTEM}" STREQUAL "CLANGARM64")
+    set(CPACK_ARCH "arm64")
+  elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "arm|ARM")
+    set(CPACK_ARCH "arm")
+  else()
+    set(CPACK_ARCH "amd64")
+  endif()
+  set(CPACK_PACKAGE_FILE_NAME "p6a_${PROJECT_VERSION}_windows_${CPACK_ARCH}")
   set(CPACK_PACKAGE_INSTALL_DIRECTORY "p6a")
   set(CPACK_RESOURCE_FILE_WELCOME "${CMAKE_CURRENT_SOURCE_DIR}/assets/installer/WELCOME.windows.txt")
   set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/assets/installer/README.windows.txt")

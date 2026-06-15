@@ -33,7 +33,12 @@
 #include "test_runner.h"
 #include "throttle.h"
 #include <stdio.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <time.h>
+#endif
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Helpers
@@ -42,9 +47,13 @@
 static PLLong
 nowMs (void)
 {
+#ifdef _WIN32
+  return (PLLong)GetTickCount64 ();
+#else
   struct timespec ts;
   clock_gettime (CLOCK_MONOTONIC, &ts);
   return (PLLong)ts.tv_sec * 1000 + (PLLong)ts.tv_nsec / 1000000;
+#endif
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *

@@ -53,7 +53,10 @@ endif()
 # On Windows, link everything statically so the .exe is self-contained
 # (no DLL dependencies on libcurl, libgcc, etc.).
 if(WIN32)
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static -static-libgcc")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
+    if(NOT CMAKE_C_COMPILER_ID MATCHES "Clang")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc")
+    endif()
 
     # Required: without this, curl headers declare functions as __declspec(dllimport)
     # which forces dynamic linking regardless of whether libcurl.a is used.

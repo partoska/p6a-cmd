@@ -33,7 +33,12 @@
 #include "throttle.h"
 #include "logger.h"
 #include "types.h"
+
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <time.h>
+#endif
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Definitions - Private
@@ -42,10 +47,14 @@
 static PLLong
 plGetTimeMs (void)
 {
+#ifdef _WIN32
+  return (PLLong)GetTickCount64 ();
+#else
   struct timespec ts;
   clock_gettime (CLOCK_MONOTONIC, &ts);
   return (PLLong)ts.tv_sec * (PLLong)1000
          + (PLLong)ts.tv_nsec / (PLLong)1000000;
+#endif
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -87,9 +96,13 @@ plThrottleAcquire (PLThrottle *t)
 
       PLDword wait = t->interval - t->tokens;
       PL_DSLOW ("Throttle: sleep, tokens=%u, wait=%u", t->tokens, wait);
+#ifdef _WIN32
+      Sleep ((DWORD)wait);
+#else
       struct timespec ts;
       ts.tv_sec = (PLLong)wait / (PLLong)1000;
       ts.tv_nsec = ((PLLong)wait % (PLLong)1000) * (PLLong)1000000;
       nanosleep (&ts, NULL);
+#endif
     }
 }

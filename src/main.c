@@ -1253,7 +1253,8 @@ plDoHelp (void)
       "  -D, --dir <path>    Specify working directory (default: ~/.p6a)");
   PL_INFO ("  -e, --event <id>    Event ID (required)");
   PL_INFO (
-      "  -d, --design <name> Card design: bday, tech, match, forest (required)");
+      "  -d, --design <name> Card design: bday, tech, match, forest, gold, "
+      "romantic, neon (required)");
   PL_INFO (
       "  -t, --target <file> Output file path (default: <id>-card.pdf/jpg)");
   PL_INFO ("  -l, --locale <loc>  Language: en (default), cs");
