@@ -35,4 +35,4 @@ started:
 
 MORE INFORMATION
 
-  https://lab.partoska.com/p6a
+  https://www.partoska.com/p6a

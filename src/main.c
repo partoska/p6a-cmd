@@ -71,7 +71,7 @@ plPrintLogo (void)
   PL_INFO ("/_/   \\_,_/_/  \\__/\\___/___/_/\\_\\\\_,_/");
   PL_INFO ("");
   PL_INFO ("Partoska Command-Line Interface (p6a) v" PL_VERSION_STRING);
-  PL_INFO ("(C) 2026 Fabrika Charvat s.r.o., <https://lab.partoska.com/p6a>");
+  PL_INFO ("(C) 2026 Fabrika Charvat s.r.o., <https://www.partoska.com/p6a>");
   PL_INFO ("");
   PL_INFO ("Licensed under the MIT License.");
   PL_INFO ("");
