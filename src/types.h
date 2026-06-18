@@ -77,7 +77,7 @@ typedef enum PLError
 
 #define PL_VERSION_MAJOR 1
 #define PL_VERSION_MINOR 10
-#define PL_VERSION_PATCH 3
+#define PL_VERSION_PATCH 4
 #define PL_VERSION_STRING                                                     \
   PL_XSTR (PL_VERSION_MAJOR)                                                  \
   "." PL_XSTR (PL_VERSION_MINOR) "." PL_XSTR (PL_VERSION_PATCH)

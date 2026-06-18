@@ -1,6 +1,6 @@
 {
   "name": "@partoska/p6a-linux-arm64",
-  "version": "1.10.3",
+  "version": "1.10.4",
   "description": "Linux arm64 native binary for @partoska/p6a.",
   "os": [
     "linux"
