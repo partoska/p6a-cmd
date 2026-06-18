@@ -2,7 +2,7 @@
 
 Manage and sync your event photos from [Partoska](https://www.partoska.com) — right from your terminal.
 
-[![Version](https://img.shields.io/badge/version-1.10.4-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v1.10.4)
+[![Version](https://img.shields.io/badge/version-1.10.5-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v1.10.5)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt)
 
 ## What is this?
@@ -21,9 +21,28 @@ Manage and sync your event photos from [Partoska](https://www.partoska.com) — 
 
 ## Quick Start
 
-**Prerequisites:** CMake 3.13+, GCC or Clang, and libcurl (e.g. `sudo apt install libcurl4-openssl-dev` on Ubuntu or `brew install curl` on macOS).
-
 ### 1. Install
+
+**Via Homebrew** (macOS/Linux):
+
+```bash
+brew install partoska/tap/p6a
+```
+
+**Via npm**:
+
+```bash
+npm install -g @partoska/p6a
+```
+
+Or run without installing:
+
+```bash
+npx @partoska/p6a login
+npx @partoska/p6a sync -t ~/my-photos
+```
+
+**From source** (requires CMake 3.13+, GCC or Clang, and libcurl):
 
 ```bash
 # Clone the repository.

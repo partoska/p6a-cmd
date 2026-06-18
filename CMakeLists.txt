@@ -26,7 +26,7 @@
 #
 
 cmake_minimum_required(VERSION 3.13)
-project(p6a VERSION 1.10.4)
+project(p6a VERSION 1.10.5)
 
 # P6A build.
 add_subdirectory(src)

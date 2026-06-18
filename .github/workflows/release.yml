@@ -344,3 +344,45 @@ jobs:
           done
       - name: Publish main package
         run: ( cd npm/p6a && npm publish --provenance --access public )
+  homebrew-update:
+    needs: [release]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v6
+        with:
+          repository: partoska/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      - name: Download artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: p6a_darwin_universal
+          path: artifacts/darwin/
+      - uses: actions/download-artifact@v7
+        with:
+          name: p6a_linux_amd64
+          path: artifacts/linux_amd64/
+      - uses: actions/download-artifact@v7
+        with:
+          name: p6a_linux_arm64
+          path: artifacts/linux_arm64/
+      - name: Update formula
+        run: |
+          set -euo pipefail
+          VERSION=${{ github.ref_name }}
+          VERSION=${VERSION#v}
+          SHA256_DARWIN=$(shasum -a 256 artifacts/darwin/p6a | cut -d' ' -f1)
+          SHA256_LINUX_AMD64=$(shasum -a 256 artifacts/linux_amd64/p6a | cut -d' ' -f1)
+          SHA256_LINUX_ARM64=$(shasum -a 256 artifacts/linux_arm64/p6a | cut -d' ' -f1)
+          sed -i "s/version \".*\"/version \"${VERSION}\"/" Formula/p6a.rb
+          sed -i "/darwin_universal/{n; s/sha256 \".*\"/sha256 \"${SHA256_DARWIN}\"/}" Formula/p6a.rb
+          sed -i "/linux_amd64/{n; s/sha256 \".*\"/sha256 \"${SHA256_LINUX_AMD64}\"/}" Formula/p6a.rb
+          sed -i "/linux_arm64/{n; s/sha256 \".*\"/sha256 \"${SHA256_LINUX_ARM64}\"/}" Formula/p6a.rb
+      - name: Commit and push
+        run: |
+          VERSION=${{ github.ref_name }}
+          git config user.name "p6a-ops"
+          git config user.email "github@partoska.com"
+          git add Formula/p6a.rb
+          git commit -m "Update p6a to ${VERSION}"
+          git push
