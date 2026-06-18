@@ -190,7 +190,14 @@ jobs:
           name: packages_darwin_universal
           path: dist/
   release:
-    needs: [build-linux-amd64, build-linux-arm64, build-windows-amd64, build-windows-arm64, build-macos]
+    needs:
+      [
+        build-linux-amd64,
+        build-linux-arm64,
+        build-windows-amd64,
+        build-windows-arm64,
+        build-macos,
+      ]
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -223,3 +230,116 @@ jobs:
         run: gh release upload ${{ github.ref_name }} artifacts/packages_*/* --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  npm-publish:
+    needs: [release]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: "https://registry.npmjs.org"
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+      - name: Download all artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: artifacts/
+      - name: Stamp version into npm packages
+        run: |
+          set -euo pipefail
+          VERSION=${{ github.ref_name }}
+          VERSION=${VERSION#v}
+          node -e '
+            const fs = require("fs");
+            const version = process.argv[1];
+            const main = "npm/p6a/package.json";
+            const files = [
+              main,
+              "npm/p6a-darwin/package.json",
+              "npm/p6a-linux-x64/package.json",
+              "npm/p6a-linux-arm64/package.json",
+              "npm/p6a-win32-x64/package.json",
+              "npm/p6a-win32-arm64/package.json",
+            ];
+            for (const f of files) {
+              const j = JSON.parse(fs.readFileSync(f, "utf8"));
+              j.version = version;
+              if (f === main) {
+                for (const k of Object.keys(j.optionalDependencies)) {
+                  j.optionalDependencies[k] = version;
+                }
+              }
+              fs.writeFileSync(f, JSON.stringify(j, null, 2) + "\n");
+            }
+          ' "$VERSION"
+      - name: Verify all package versions match
+        run: |
+          set -euo pipefail
+          VERSION=${{ github.ref_name }}
+          VERSION=${VERSION#v}
+          node -e '
+            const fs = require("fs");
+            const version = process.argv[1];
+            const files = [
+              "npm/p6a/package.json",
+              "npm/p6a-darwin/package.json",
+              "npm/p6a-linux-x64/package.json",
+              "npm/p6a-linux-arm64/package.json",
+              "npm/p6a-win32-x64/package.json",
+              "npm/p6a-win32-arm64/package.json",
+            ];
+            let ok = true;
+            for (const f of files) {
+              const j = JSON.parse(fs.readFileSync(f, "utf8"));
+              if (j.version !== version) {
+                console.error(`::error::${f} version ${j.version} != ${version}`);
+                ok = false;
+              }
+            }
+            const main = JSON.parse(fs.readFileSync("npm/p6a/package.json", "utf8"));
+            for (const [k, v] of Object.entries(main.optionalDependencies)) {
+              if (v !== version) {
+                console.error(`::error::optionalDependency ${k} pinned to ${v} != ${version}`);
+                ok = false;
+              }
+            }
+            if (!ok) process.exit(1);
+            console.log("all five packages at " + version);
+          ' "$VERSION"
+      - name: Stage native binaries into platform packages
+        run: |
+          set -euo pipefail
+          declare -A SRC=(
+            [npm/p6a-darwin/bin/p6a]=artifacts/p6a_darwin_universal/p6a
+            [npm/p6a-linux-x64/bin/p6a]=artifacts/p6a_linux_amd64/p6a
+            [npm/p6a-linux-arm64/bin/p6a]=artifacts/p6a_linux_arm64/p6a
+            [npm/p6a-win32-x64/bin/p6a.exe]=artifacts/p6a_windows_amd64/p6a.exe
+            [npm/p6a-win32-arm64/bin/p6a.exe]=artifacts/p6a_windows_arm64/p6a.exe
+          )
+          for dest in "${!SRC[@]}"; do
+            src="${SRC[$dest]}"
+            if [ ! -f "$src" ]; then
+              echo "::error::missing expected binary artifact: $src"
+              exit 1
+            fi
+            mkdir -p "$(dirname "$dest")"
+            cp "$src" "$dest"
+          done
+          chmod +x \
+            npm/p6a-darwin/bin/p6a \
+            npm/p6a-linux-x64/bin/p6a \
+            npm/p6a-linux-arm64/bin/p6a
+      - name: Publish platform packages
+        run: |
+          set -euo pipefail
+          for d in npm/p6a-darwin npm/p6a-linux-x64 npm/p6a-linux-arm64 npm/p6a-win32-x64 npm/p6a-win32-arm64; do
+            ( cd "$d" && npm publish --provenance --access public )
+          done
+      - name: Publish main package
+        run: ( cd npm/p6a && npm publish --provenance --access public )

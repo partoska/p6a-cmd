@@ -1,0 +1,23 @@
+{
+  "name": "@partoska/p6a-darwin",
+  "version": "1.10.0",
+  "description": "macOS (universal) native binary for @partoska/p6a.",
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "files": [
+    "bin/"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/partoska/p6a-cmd.git"
+  },
+  "license": "MIT"
+}

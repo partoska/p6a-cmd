@@ -29,6 +29,10 @@
 node_modules/
 dist/
 
+# Npm distribution
+npm/*/bin/p6a
+npm/*/bin/p6a.exe
+
 # CMake artifact files
 build/
 _CPack_Packages/

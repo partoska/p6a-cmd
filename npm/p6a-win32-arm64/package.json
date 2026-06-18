@@ -1,0 +1,22 @@
+{
+  "name": "@partoska/p6a-win32-arm64",
+  "version": "1.10.0",
+  "description": "Windows arm64 native binary for @partoska/p6a.",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "files": [
+    "bin/"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/partoska/p6a-cmd.git"
+  },
+  "license": "MIT"
+}
