@@ -1,6 +1,6 @@
 {
   "name": "@partoska/p6a-linux-arm64",
-  "version": "1.10.1",
+  "version": "1.10.2",
   "description": "Linux arm64 native binary for @partoska/p6a.",
   "os": [
     "linux"
@@ -16,7 +16,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/partoska/p6a-cmd.git"
+    "url": "git+https://github.com/partoska/p6a-cmd.git"
   },
   "license": "MIT"
 }

@@ -1,6 +1,6 @@
 {
   "name": "@partoska/p6a",
-  "version": "1.10.1",
+  "version": "1.10.2",
   "description": "Command-line tool to manage and sync your event photos from Partoska.",
   "bin": {
     "p6a": "bin/p6a.js"
@@ -9,18 +9,18 @@
     "bin/"
   ],
   "optionalDependencies": {
-    "@partoska/p6a-darwin": "1.10.1",
-    "@partoska/p6a-linux-x64": "1.10.1",
-    "@partoska/p6a-linux-arm64": "1.10.1",
-    "@partoska/p6a-win32-x64": "1.10.1",
-    "@partoska/p6a-win32-arm64": "1.10.1"
+    "@partoska/p6a-darwin": "1.10.2",
+    "@partoska/p6a-linux-x64": "1.10.2",
+    "@partoska/p6a-linux-arm64": "1.10.2",
+    "@partoska/p6a-win32-x64": "1.10.2",
+    "@partoska/p6a-win32-arm64": "1.10.2"
   },
   "publishConfig": {
     "access": "public"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/partoska/p6a-cmd.git"
+    "url": "git+https://github.com/partoska/p6a-cmd.git"
   },
   "homepage": "https://www.partoska.com/p6a",
   "bugs": {

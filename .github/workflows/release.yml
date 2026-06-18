@@ -244,6 +244,7 @@ jobs:
         with:
           node-version: 24
           registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
       - name: Upgrade npm
         run: npm install -g npm@latest
       - name: Download all artifacts
