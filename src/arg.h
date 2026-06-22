@@ -60,6 +60,7 @@ typedef enum
   PL_CUPDATE,
   PL_CMEDIA,
   PL_CDOWNLOAD,
+  PL_CUPLOAD,
   PL_CEDIT,
   PL_CAPPROVE,
   PL_CCARD,
@@ -154,6 +155,11 @@ typedef struct PLArgs
       const PLChar *target;
       const PLChar *media;
     } download;
+    struct
+    {
+      const PLChar *event;
+      const PLChar *source;
+    } upload;
     struct
     {
       const PLChar *event;

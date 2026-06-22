@@ -47,6 +47,7 @@
 #include "sync.h"
 #include "types.h"
 #include "update.h"
+#include "upload.h"
 #include "wdir.h"
 #include <curl/curl.h>
 #include <stdlib.h>
@@ -1151,6 +1152,86 @@ plDoApprove (const PLChar *dir, const PLChar *event, const PLChar *media)
 }
 
 static PLInt
+plDoUpload (const PLChar *dir, const PLChar *event, const PLChar *path)
+{
+  if (!event || !path)
+    {
+      PL_ERROR ("Event ID and source file are required");
+      return PL_EARG;
+    }
+
+  PLChar workdir[WORKDIR_MAX];
+  if (dir != NULL)
+    {
+      strncpy (workdir, dir, PL_CHARSMAX (workdir));
+      workdir[PL_CHARSMAX (workdir)] = '\0';
+    }
+  else
+    {
+      workdir[0] = '\0';
+    }
+
+  PLInt result = plPrepareWorkdir (workdir, sizeof (workdir));
+  if (result != PL_EOK)
+    {
+      PL_ERROR ("Failed to prepare working directory");
+      return result;
+    }
+
+  PLChar ini[sizeof (workdir) + sizeof (PL_CONFIG_INI)];
+  plGetIniPath (ini, sizeof (ini), workdir);
+
+  PLCfg *config = plCfgInit ();
+  if (!config)
+    {
+      PL_ERROR ("Failed to initialize configuration");
+      return PL_EMEM;
+    }
+
+  result = plCfgLoad (config, ini);
+  if (result != PL_EOK)
+    {
+      switch (result)
+        {
+        case PL_EFS:
+          PL_ERROR ("Missing configuration, please login first");
+          break;
+        default:
+          PL_ERROR ("Failed to load configuration");
+          break;
+        }
+
+      plCfgDestroy (config);
+      return result;
+    }
+
+  if (!plCfgCheck (config))
+    {
+      PL_ERROR ("Invalid configuration, please login again");
+      plCfgDestroy (config);
+      return PL_EARG;
+    }
+
+  curl_global_init (CURL_GLOBAL_DEFAULT);
+
+  PLChar *bearer = plOAuthGet (config, ini);
+  if (!bearer)
+    {
+      curl_global_cleanup ();
+      plCfgDestroy (config);
+      return PL_ENET;
+    }
+
+  result = plUpload (config->glob->endpoint, bearer, event, path);
+
+  free (bearer);
+  curl_global_cleanup ();
+  plCfgDestroy (config);
+
+  return result;
+}
+
+static PLInt
 plDoVersion (void)
 {
   PL_INFO ("p6a v" PL_VERSION_STRING);
@@ -1178,6 +1259,7 @@ plDoHelp (void)
   PL_INFO ("  link                Get invite link for an event");
   PL_INFO ("  media               List media items for an event");
   PL_INFO ("  download            Download media for an event");
+  PL_INFO ("  upload              Upload a media file to an event");
   PL_INFO ("  help                Display this help message");
   PL_INFO ("  version             Print version information");
   PL_INFO ("");
@@ -1293,6 +1375,12 @@ plDoHelp (void)
   PL_INFO ("  -m, --media <id>    Media ID (required)");
   PL_INFO ("  -t, --target <file> Output file path (required)");
   PL_INFO ("");
+  PL_INFO ("Upload media options:");
+  PL_INFO (
+      "  -D, --dir <path>    Specify working directory (default: ~/.p6a)");
+  PL_INFO ("  -e, --event <id>    Event ID (required)");
+  PL_INFO ("  -s, --source <file> Path to local media file (required)");
+  PL_INFO ("");
   PL_INFO ("Examples:");
   PL_INFO ("  p6a login");
   PL_INFO ("  p6a list");
@@ -1320,6 +1408,7 @@ plDoHelp (void)
       "--owner-only");
   PL_INFO ("  p6a download -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 "
            "-m 7a8b9c0d-f00d-4a3b-8c5d-e6f700010203 -t photo.jpg");
+  PL_INFO ("  p6a upload -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -s photo.jpg");
   PL_INFO ("  p6a edit -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 "
            "-m 7a8b9c0d-f00d-4a3b-8c5d-e6f700010203 -f");
   PL_INFO ("  p6a edit -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 "
@@ -1440,6 +1529,15 @@ main (PLInt argc, PLChar **argv)
         if (plDoDownload (args.dir, args.c.download.event,
                           args.c.download.media, args.c.download.target,
                           args.flags & PL_FOWN, args.flags & PL_FFAV)
+            != PL_EOK)
+          {
+            return EXIT_FAILURE;
+          };
+        break;
+      }
+    case PL_CUPLOAD:
+      {
+        if (plDoUpload (args.dir, args.c.upload.event, args.c.upload.source)
             != PL_EOK)
           {
             return EXIT_FAILURE;

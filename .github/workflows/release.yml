@@ -382,7 +382,53 @@ jobs:
         run: |
           VERSION=${{ github.ref_name }}
           git config user.name "p6a-ops"
-          git config user.email "github@partoska.com"
+          git config user.email "p6a-ops@users.noreply.github.com"
           git add Formula/p6a.rb
+          git commit -m "Update p6a to ${VERSION}"
+          git push
+  scoop-update:
+    needs: [release]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout scoop-bucket
+        uses: actions/checkout@v6
+        with:
+          repository: partoska/scoop-bucket
+          token: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+      - name: Download artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: p6a_windows_amd64
+          path: artifacts/windows_amd64/
+      - uses: actions/download-artifact@v7
+        with:
+          name: p6a_windows_arm64
+          path: artifacts/windows_arm64/
+      - name: Update manifest
+        run: |
+          set -euo pipefail
+          VERSION=${{ github.ref_name }}
+          VERSION=${VERSION#v}
+          SHA256_AMD64=$(shasum -a 256 artifacts/windows_amd64/p6a.exe | cut -d' ' -f1)
+          SHA256_ARM64=$(shasum -a 256 artifacts/windows_arm64/p6a.exe | cut -d' ' -f1)
+          node -e '
+            const fs = require("fs");
+            const [version, sha256Amd64, sha256Arm64] = process.argv.slice(1);
+            const manifest = JSON.parse(fs.readFileSync("bucket/p6a.json", "utf8"));
+            manifest.version = version;
+            manifest.architecture["64bit"].url =
+              `https://github.com/partoska/p6a-cmd/releases/download/v${version}/p6a_${version}_windows_amd64.exe#/p6a.exe`;
+            manifest.architecture["64bit"].hash = sha256Amd64;
+            manifest.architecture["arm64"].url =
+              `https://github.com/partoska/p6a-cmd/releases/download/v${version}/p6a_${version}_windows_arm64.exe#/p6a.exe`;
+            manifest.architecture["arm64"].hash = sha256Arm64;
+            fs.writeFileSync("bucket/p6a.json", JSON.stringify(manifest, null, 2) + "\n");
+          ' "$VERSION" "$SHA256_AMD64" "$SHA256_ARM64"
+      - name: Commit and push
+        run: |
+          VERSION=${{ github.ref_name }}
+          git config user.name "p6a-ops"
+          git config user.email "p6a-ops@users.noreply.github.com"
+          git add bucket/p6a.json
           git commit -m "Update p6a to ${VERSION}"
           git push

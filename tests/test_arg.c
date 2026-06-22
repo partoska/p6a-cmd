@@ -469,6 +469,43 @@ testDownload (void)
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Tests - upload
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+static void
+testUpload (void)
+{
+  PLArg args;
+  PLChar *argv[] = { "p6a", "upload", "-e", "event-uuid", "-s", "photo.jpg" };
+  PLChar *argvLong[] = { "p6a",      "upload",    "--event",  "event-uuid",
+                         "--source", "photo.jpg" };
+  PLChar *argvDir[] = { "p6a",    "upload",     "-e",      "event-uuid",
+                        "-s",     "photo.jpg",  "--dir",   "/custom/dir" };
+  PLChar *argvNoEvent[] = { "p6a", "upload", "-s", "photo.jpg" };
+  PLChar *argvNoSource[] = { "p6a", "upload", "-e", "event-uuid" };
+  PLChar *argvNone[] = { "p6a", "upload" };
+
+  PL_ASSERT_EQ (parse (&args, 6, argv), PL_EOK);
+  PL_ASSERT_EQ (args.cmd, PL_CUPLOAD);
+  PL_ASSERT_STR_EQ (args.c.upload.event, "event-uuid");
+  PL_ASSERT_STR_EQ (args.c.upload.source, "photo.jpg");
+  PL_ASSERT (args.dir == NULL);
+
+  PL_ASSERT_EQ (parse (&args, 6, argvLong), PL_EOK);
+  PL_ASSERT_EQ (args.cmd, PL_CUPLOAD);
+  PL_ASSERT_STR_EQ (args.c.upload.event, "event-uuid");
+  PL_ASSERT_STR_EQ (args.c.upload.source, "photo.jpg");
+
+  PL_ASSERT_EQ (parse (&args, 8, argvDir), PL_EOK);
+  PL_ASSERT_STR_EQ (args.dir, "/custom/dir");
+
+  // Missing event, source, or both must be rejected.
+  PL_ASSERT_EQ (parse (&args, 4, argvNoEvent), PL_EARG);
+  PL_ASSERT_EQ (parse (&args, 4, argvNoSource), PL_EARG);
+  PL_ASSERT_EQ (parse (&args, 2, argvNone), PL_EARG);
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - edit
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
@@ -589,6 +626,7 @@ main (void)
   PL_RUN (testLink);
   PL_RUN (testMedia);
   PL_RUN (testDownload);
+  PL_RUN (testUpload);
   PL_RUN (testEdit);
   PL_RUN (testApprove);
 

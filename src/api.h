@@ -224,6 +224,21 @@ PLInt plApiMediaApprove (const PLChar *base, const PLChar *token,
                          const PLChar *event, const PLChar *media);
 
 /**
+ * Uploads a media file to an event.
+ *
+ * @param id    Output buffer to receive the uploaded media UUID.
+ * @param size  Capacity of the output buffer in bytes.
+ * @param base  API base URL.
+ * @param token OAuth bearer token.
+ * @param event UUID of the event to upload to.
+ * @param path  Path to the local media file to upload.
+ * @return PL_EOK on success, or a PL_E* error code on failure.
+ */
+PLInt plApiMediaUpload (PLChar *id, PLSize size, const PLChar *base,
+                        const PLChar *token, const PLChar *event,
+                        const PLChar *path);
+
+/**
  * Downloads the share card for an event as a PDF or JPEG.
  *
  * @param base   API base URL.

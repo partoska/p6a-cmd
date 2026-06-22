@@ -523,6 +523,47 @@ plArgParseDownload (PLArg *args, PLInt argc, PLChar **argv)
 }
 
 static PLInt
+plArgParseUpload (PLArg *args, PLInt argc, PLChar **argv)
+{
+  static struct option opts[] = { { "dir", required_argument, NULL, 'D' },
+                                  { "event", required_argument, NULL, 'e' },
+                                  { "source", required_argument, NULL, 's' },
+                                  { NULL, 0, NULL, 0 } };
+  PLInt c;
+  opterr = 0;
+  while ((c = getopt_long (argc, argv, "D:e:s:", opts, NULL)) != -1)
+    {
+      switch (c)
+        {
+        case 'D':
+          PL_DSLOW ("Arg: --dir=%s", optarg);
+          args->dir = optarg;
+          break;
+
+        case 'e':
+          PL_DSLOW ("Arg: --event=%s", optarg);
+          args->c.upload.event = optarg;
+          break;
+
+        case 's':
+          PL_DSLOW ("Arg: --source=%s", optarg);
+          args->c.upload.source = optarg;
+          break;
+
+        default:
+          return PL_EARG;
+        }
+    }
+
+  if (args->c.upload.event == NULL || args->c.upload.source == NULL)
+    {
+      return PL_EARG;
+    }
+
+  return PL_EOK;
+}
+
+static PLInt
 plArgParseEdit (PLArg *args, PLInt argc, PLChar **argv)
 {
   static struct option opts[] = { { "dir", required_argument, NULL, 'D' },
@@ -823,6 +864,11 @@ plArgParse (PLArg *args, PLInt argc, PLChar **argv)
     {
       args->cmd = PL_CDOWNLOAD;
       return plArgParseDownload (args, argc - 1, &argv[1]);
+    }
+  else if (strcmp (cmd, "upload") == 0)
+    {
+      args->cmd = PL_CUPLOAD;
+      return plArgParseUpload (args, argc - 1, &argv[1]);
     }
   else if (strcmp (cmd, "edit") == 0)
     {

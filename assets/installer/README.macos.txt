@@ -3,9 +3,9 @@ p6a — Partoska Command-Line Interface
 DESCRIPTION
 
 p6a lets you authenticate with Partoska.com, list, create, and update
-events, synchronize event photos to a local directory, list and download
-event media, retrieve invite links, and download QR codes and share cards
-from the command line.
+events, synchronize event photos to a local directory, upload, list and
+download event media, retrieve invite links, and download QR codes and
+share cards from the command line.
 
 USAGE
 
@@ -19,6 +19,7 @@ USAGE
   p6a link           Get invite link for an event
   p6a media          List media items for an event
   p6a download       Download media for an event
+  p6a upload         Upload a photo to an event
   p6a edit           Update a media item
   p6a approve        Approve a media item in a moderated event
   p6a logout         Clear stored credentials

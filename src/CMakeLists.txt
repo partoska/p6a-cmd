@@ -75,7 +75,7 @@ endif()
 
 add_executable(p6a hash.c base64.c oauth.c api.c arg.c ini.c
     config.c sync.c list.c qr.c card.c link.c create.c update.c edit.c approve.c
-    media.c download.c logger.c fs.c wdir.c rng.c throttle.c main.c
+    upload.c media.c download.c logger.c fs.c wdir.c rng.c throttle.c main.c
     3rdparty/cJSON/cJSON.c)
 
 # Include cJSON and CURL headers.

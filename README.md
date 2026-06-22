@@ -2,7 +2,7 @@
 
 Manage and sync your event photos from [Partoska](https://www.partoska.com) — right from your terminal.
 
-[![Version](https://img.shields.io/badge/version-1.10.5-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v1.10.5)
+[![Version](https://img.shields.io/badge/version-1.11.0-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v1.11.0)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt)
 
 ## What is this?
@@ -15,6 +15,7 @@ Manage and sync your event photos from [Partoska](https://www.partoska.com) — 
 - Smart sync that doesn't re-download existing files.
 - Automatic folder organization by event and date.
 - Filter by events you own or have favorited.
+- Upload photos directly to an event from the command line.
 - Get or download invite links and QR codes for sharing events.
 - Works on macOS, Linux, and Windows.
 - [Agent skills available](https://github.com/partoska/p6a-skills) for use with AI assistants.
@@ -100,6 +101,7 @@ my-photos/
 | `link`     | Get invite link for an event       |
 | `media`    | List media items for an event      |
 | `download` | Download media for an event        |
+| `upload`   | Upload a photo to an event         |
 | `help`     | Show usage information             |
 | `version`  | Print version information          |
 
@@ -533,6 +535,35 @@ p6a download -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -m 7a8b9c0d-f00d-4a3b-8c5d-
 ```
 
 In all-media mode, files are named sequentially (`IMG_0001.jpg`, `MOV_0001.mp4`, etc.) based on what already exists in the target directory.
+
+### `upload` - Upload a Media File
+
+Upload a media file to an event. On moderated events, uploaded files are created as unapproved and require moderator approval before becoming visible to other guests.
+
+```bash
+p6a upload -e <event-id> -s <file>
+```
+
+Prints the uploaded media ID on success.
+
+**Options:**
+
+- `-e, --event <id>` - Event ID (required).
+- `-s, --source <file>` - Path to the local media file to upload (required).
+- `-D, --dir <path>` - Custom config directory (default: `~/.p6a`).
+
+**Examples:**
+
+```bash
+# Upload a single photo.
+p6a upload -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -s photo.jpg
+
+# Upload multiple photos in a loop.
+EID=12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7
+for f in *.jpg; do
+  p6a upload -e "$EID" -s "$f"
+done
+```
 
 ### `logout` - Remove Credentials
 
