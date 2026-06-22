@@ -36,6 +36,13 @@ brew install partoska/tap/p6a
 npm install -g @partoska/p6a
 ```
 
+**Via Scoop** (Windows):
+
+```powershell
+scoop bucket add partoska https://github.com/partoska/scoop-bucket
+scoop install p6a
+```
+
 Or run without installing:
 
 ```bash
