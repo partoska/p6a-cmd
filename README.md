@@ -2,7 +2,7 @@
 
 Manage and sync your event photos from [Partoska](https://www.partoska.com) — right from your terminal.
 
-[![Version](https://img.shields.io/badge/version-1.11.0-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v1.11.0)
+[![Version](https://img.shields.io/badge/version-1.11.1-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v1.11.1)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt)
 
 ## What is this?

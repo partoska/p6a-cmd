@@ -34,6 +34,13 @@
 #include "api.h"
 #include "logger.h"
 #include "types.h"
+#include <string.h>
+#ifdef _WIN32
+#define plStricmp _stricmp
+#else
+#include <strings.h>
+#define plStricmp strcasecmp
+#endif
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Definitions - Public
@@ -46,6 +53,15 @@ plUpload (const PLChar *base, const PLChar *bearer, const PLChar *event,
   if (!base || !bearer || !event || !path)
     {
       PL_ERROR ("Endpoint, bearer, event, and/or path are invalid");
+      return PL_EARG;
+    }
+
+  const PLChar *ext = strrchr (path, '.');
+  if (!ext
+      || (plStricmp (ext, ".jpg") != 0 && plStricmp (ext, ".jpeg") != 0
+          && plStricmp (ext, ".mp4") != 0 && plStricmp (ext, ".mov") != 0))
+    {
+      PL_ERROR ("Unsupported file type; expected .jpg, .jpeg, .mp4, or .mov");
       return PL_EARG;
     }
 

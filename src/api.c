@@ -39,6 +39,12 @@
 #include <curl/curl.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#define plStricmp _stricmp
+#else
+#include <strings.h>
+#define plStricmp strcasecmp
+#endif
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Macros
@@ -878,10 +884,14 @@ plApiQrFetch (const PLChar *base, const PLChar *token, const PLChar *event,
 
   PLChar url[URL_MAX];
   if (svg)
-    snprintf (url, PL_CHARSMAX (url), "%s/event/%s/qr?format=svg", base,
-              event);
+    {
+      snprintf (url, PL_CHARSMAX (url), "%s/event/%s/qr?format=svg", base,
+                event);
+    }
   else
-    snprintf (url, PL_CHARSMAX (url), "%s/event/%s/qr", base, event);
+    {
+      snprintf (url, PL_CHARSMAX (url), "%s/event/%s/qr", base, event);
+    }
   url[PL_CHARSMAX (url)] = '\0';
 
   PLChar authorization[AUTHORIZATION_MAX];
@@ -1484,9 +1494,24 @@ plApiMediaUpload (PLChar *id, PLSize size, const PLChar *base,
             "Authorization: Bearer %s", token);
   authorization[PL_CHARSMAX (authorization)] = '\0';
 
+  const PLChar *ext = strrchr (path, '.');
+  const PLChar *ctype;
+  if (ext && plStricmp (ext, ".mp4") == 0)
+    {
+      ctype = "Content-Type: video/mp4";
+    }
+  else if (ext && plStricmp (ext, ".mov") == 0)
+    {
+      ctype = "Content-Type: video/quicktime";
+    }
+  else
+    {
+      ctype = "Content-Type: image/jpeg";
+    }
+
   struct curl_slist *headers = NULL;
   headers = curl_slist_append (headers, "Accept: application/json");
-  headers = curl_slist_append (headers, "Content-Type: image/jpeg");
+  headers = curl_slist_append (headers, ctype);
   headers = curl_slist_append (headers, "User-Agent: p6a/" PL_VERSION_STRING);
   headers = curl_slist_append (headers, authorization);
 

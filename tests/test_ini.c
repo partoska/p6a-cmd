@@ -324,6 +324,56 @@ testLoadNonexistentFile (void)
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Tests - Case-insensitive lookup
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+static void
+testCaseInsensitiveLookup (void)
+{
+  // Keys set in one case must be retrievable in any other case.
+  PLIni *ini = plIniInit ();
+
+  PL_ASSERT_EQ (plIniSet (ini, "Auth", "Token", "abc123"), PL_EOK);
+  PL_ASSERT_STR_EQ (plIniGet (ini, "AUTH", "TOKEN"), "abc123");
+  PL_ASSERT_STR_EQ (plIniGet (ini, "auth", "token"), "abc123");
+  PL_ASSERT_STR_EQ (plIniGet (ini, "Auth", "Token"), "abc123");
+
+  plIniDestroy (ini);
+}
+
+static void
+testCaseInsensitiveUpdate (void)
+{
+  // Updating a key via a differently-cased name overwrites in-place.
+  PLIni *ini = plIniInit ();
+
+  PL_ASSERT_EQ (plIniSet (ini, "Auth", "Token", "old"), PL_EOK);
+  PL_ASSERT_EQ (plIniSet (ini, "AUTH", "TOKEN", "new"), PL_EOK);
+
+  PL_ASSERT_STR_EQ (plIniGet (ini, "auth", "token"), "new");
+  PL_ASSERT_EQ (ini->count, (PLSize)1);
+
+  plIniDestroy (ini);
+}
+
+static void
+testCaseInsensitiveLoad (void)
+{
+  // An INI file with uppercase keys/sections is readable with CamelCase
+  // lookups.
+  const PLChar *content = "[GLOBAL]\nVERSION=1.0.0\nENDPOINT=https://x\n";
+  PLChar path[256];
+  writeTmpfile (path, sizeof (path), content);
+
+  PLIni *ini = plIniInit ();
+  PL_ASSERT_EQ (plIniLoad (ini, path), PL_EOK);
+  PL_ASSERT_STR_EQ (plIniGet (ini, "Global", "Version"), "1.0.0");
+  PL_ASSERT_STR_EQ (plIniGet (ini, "Global", "Endpoint"), "https://x");
+  plIniDestroy (ini);
+  rmFile (path);
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - Save / Round-trip
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
@@ -398,6 +448,11 @@ main (void)
   PL_RUN (testLoadEmptyLinesIgnored);
   PL_RUN (testLoadMultipleSections);
   PL_RUN (testLoadNonexistentFile);
+
+  PL_SUITE ("ini - case-insensitive lookup");
+  PL_RUN (testCaseInsensitiveLookup);
+  PL_RUN (testCaseInsensitiveUpdate);
+  PL_RUN (testCaseInsensitiveLoad);
 
   PL_SUITE ("ini - save / round-trip");
   PL_RUN (testSaveAndReload);

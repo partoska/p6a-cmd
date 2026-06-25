@@ -57,7 +57,7 @@ plWarn (const PLChar *fmt, ...)
   va_list args;
   va_start (args, fmt);
 
-  int result = vfprintf (stderr, fmt, args);
+  PLInt result = vfprintf (stderr, fmt, args);
 
   va_end (args);
 
@@ -70,7 +70,7 @@ plError (const PLChar *fmt, ...)
   va_list args;
   va_start (args, fmt);
 
-  int result = vfprintf (stderr, fmt, args);
+  PLInt result = vfprintf (stderr, fmt, args);
 
   va_end (args);
 
@@ -83,7 +83,7 @@ plFatal (const PLChar *fmt, ...)
   va_list args;
   va_start (args, fmt);
 
-  int result = vfprintf (stderr, fmt, args);
+  PLInt result = vfprintf (stderr, fmt, args);
 
   va_end (args);
 
@@ -97,7 +97,7 @@ plDebug (const PLChar *fmt, ...)
   va_list args;
   va_start (args, fmt);
 
-  int result = vfprintf (stdout, fmt, args);
+  PLInt result = vfprintf (stdout, fmt, args);
 
   va_end (args);
 

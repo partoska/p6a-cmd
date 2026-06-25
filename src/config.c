@@ -220,70 +220,70 @@ plCfgLoad (PLCfg *cfg, const PLChar *file)
       return result;
     }
 
-  const PLChar *value = plIniGet (ini, "global", "VERSION");
+  const PLChar *value = plIniGet (ini, "Global", "Version");
   if (value)
     {
       free (cfg->glob->version);
       cfg->glob->version = plStrDup (value);
     }
 
-  value = plIniGet (ini, "global", "ENDPOINT");
+  value = plIniGet (ini, "Global", "Endpoint");
   if (value)
     {
       free (cfg->glob->endpoint);
       cfg->glob->endpoint = plStrDup (value);
     }
 
-  value = plIniGet (ini, "oauth", "CLIENT");
+  value = plIniGet (ini, "OAuth", "Client");
   if (value)
     {
       free (cfg->oauth->client);
       cfg->oauth->client = plStrDup (value);
     }
 
-  value = plIniGet (ini, "oauth", "REDIRECT");
+  value = plIniGet (ini, "OAuth", "Redirect");
   if (value)
     {
       free (cfg->oauth->redirect);
       cfg->oauth->redirect = plStrDup (value);
     }
 
-  value = plIniGet (ini, "oauth", "AUTHORIZE");
+  value = plIniGet (ini, "OAuth", "Authorize");
   if (value)
     {
       free (cfg->oauth->authorize);
       cfg->oauth->authorize = plStrDup (value);
     }
 
-  value = plIniGet (ini, "oauth", "TOKEN");
+  value = plIniGet (ini, "OAuth", "Token");
   if (value)
     {
       free (cfg->oauth->token);
       cfg->oauth->token = plStrDup (value);
     }
 
-  value = plIniGet (ini, "oauth", "SCOPE");
+  value = plIniGet (ini, "OAuth", "Scope");
   if (value)
     {
       free (cfg->oauth->scope);
       cfg->oauth->scope = plStrDup (value);
     }
 
-  value = plIniGet (ini, "login", "ACCESS");
+  value = plIniGet (ini, "Login", "Access");
   if (value)
     {
       free (cfg->login->access);
       cfg->login->access = plStrDup (value);
     }
 
-  value = plIniGet (ini, "login", "REFRESH");
+  value = plIniGet (ini, "Login", "Refresh");
   if (value)
     {
       free (cfg->login->refresh);
       cfg->login->refresh = plStrDup (value);
     }
 
-  value = plIniGet (ini, "login", "EXPIRES");
+  value = plIniGet (ini, "Login", "Expires");
   if (value)
     {
       cfg->login->expires = atol (value);
@@ -313,56 +313,56 @@ plCfgSave (const PLCfg *cfg, const PLChar *file)
       return PL_EMEM;
     }
 
-  PLInt result = plIniSet (ini, "global", "VERSION", cfg->glob->version);
+  PLInt result = plIniSet (ini, "Global", "Version", cfg->glob->version);
   if (result != PL_EOK)
     {
       plIniDestroy (ini);
       return result;
     }
 
-  result = plIniSet (ini, "global", "ENDPOINT", cfg->glob->endpoint);
+  result = plIniSet (ini, "Global", "Endpoint", cfg->glob->endpoint);
   if (result != PL_EOK)
     {
       plIniDestroy (ini);
       return result;
     }
 
-  result = plIniSet (ini, "oauth", "CLIENT", cfg->oauth->client);
+  result = plIniSet (ini, "OAuth", "Client", cfg->oauth->client);
   if (result != PL_EOK)
     {
       plIniDestroy (ini);
       return result;
     }
 
-  result = plIniSet (ini, "oauth", "REDIRECT", cfg->oauth->redirect);
+  result = plIniSet (ini, "OAuth", "Redirect", cfg->oauth->redirect);
   if (result != PL_EOK)
     {
       plIniDestroy (ini);
       return result;
     }
 
-  result = plIniSet (ini, "oauth", "AUTHORIZE", cfg->oauth->authorize);
+  result = plIniSet (ini, "OAuth", "Authorize", cfg->oauth->authorize);
   if (result != PL_EOK)
     {
       plIniDestroy (ini);
       return result;
     }
 
-  result = plIniSet (ini, "oauth", "TOKEN", cfg->oauth->token);
+  result = plIniSet (ini, "OAuth", "Token", cfg->oauth->token);
   if (result != PL_EOK)
     {
       plIniDestroy (ini);
       return result;
     }
 
-  result = plIniSet (ini, "oauth", "SCOPE", cfg->oauth->scope);
+  result = plIniSet (ini, "OAuth", "Scope", cfg->oauth->scope);
   if (result != PL_EOK)
     {
       plIniDestroy (ini);
       return result;
     }
 
-  result = plIniSet (ini, "login", "ACCESS",
+  result = plIniSet (ini, "Login", "Access",
                      cfg->login->access ? cfg->login->access : "");
   if (result != PL_EOK)
     {
@@ -370,7 +370,7 @@ plCfgSave (const PLCfg *cfg, const PLChar *file)
       return result;
     }
 
-  result = plIniSet (ini, "login", "REFRESH",
+  result = plIniSet (ini, "Login", "Refresh",
                      cfg->login->refresh ? cfg->login->refresh : "");
   if (result != PL_EOK)
     {
@@ -382,7 +382,7 @@ plCfgSave (const PLCfg *cfg, const PLChar *file)
   snprintf (expires, PL_CHARSMAX (expires), "%lld",
             (PLLong)cfg->login->expires);
   expires[PL_CHARSMAX (expires)] = '\0';
-  result = plIniSet (ini, "login", "EXPIRES", expires);
+  result = plIniSet (ini, "Login", "Expires", expires);
   if (result != PL_EOK)
     {
       plIniDestroy (ini);

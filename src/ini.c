@@ -36,6 +36,13 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <string.h>
+#define plStricmp _stricmp
+#else
+#include <strings.h>
+#define plStricmp strcasecmp
+#endif
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Macros
@@ -224,8 +231,8 @@ plIniGet (PLIni *ini, const PLChar *section, const PLChar *key)
 {
   for (PLSize i = 0; i < ini->count; ++i)
     {
-      if (strcmp (ini->entries[i].section, section) == 0
-          && strcmp (ini->entries[i].key, key) == 0)
+      if (plStricmp (ini->entries[i].section, section) == 0
+          && plStricmp (ini->entries[i].key, key) == 0)
         {
           return ini->entries[i].value;
         }
@@ -240,8 +247,8 @@ plIniSet (PLIni *ini, const PLChar *section, const PLChar *key,
 {
   for (PLSize i = 0; i < ini->count; ++i)
     {
-      if (strcmp (ini->entries[i].section, section) == 0
-          && strcmp (ini->entries[i].key, key) == 0)
+      if (plStricmp (ini->entries[i].section, section) == 0
+          && plStricmp (ini->entries[i].key, key) == 0)
         {
           if (value == ini->entries[i].value)
             {
