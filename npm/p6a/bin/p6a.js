@@ -47,8 +47,7 @@ const target = TARGETS[key];
 if (!target) {
   console.error(
     `p6a: unsupported platform/architecture "${key}".\n` +
-      `Supported: ${Object.keys(TARGETS).join(", ")}.\n` +
-      `Please file an issue at https://github.com/partoska/p6a-cmd/issues`,
+      `Supported: ${Object.keys(TARGETS).join(", ")}.\n`
   );
   process.exit(1);
 }

@@ -1,6 +1,6 @@
 {
   "name": "@partoska/p6a-darwin",
-  "version": "1.11.1",
+  "version": "1.11.2",
   "description": "macOS (universal) native binary for @partoska/p6a.",
   "os": [
     "darwin"

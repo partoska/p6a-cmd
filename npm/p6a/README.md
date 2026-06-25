@@ -19,6 +19,7 @@ working with your photos offline.
 - Automatic folder organization by event and date.
 - Filter by events you own or have favorited.
 - Create and update events, moderate uploads, and manage media.
+- Upload photos directly to an event from the command line.
 - Get or download invite links, QR codes, and printable share cards.
 - Works on macOS, Linux, and Windows.
 - [Agent skills available](https://github.com/partoska/p6a-skills) for use with
@@ -98,6 +99,7 @@ renamed automatically if an event's name changes.
 | `link`     | Get invite link for an event       |
 | `media`    | List media items for an event      |
 | `download` | Download media for an event        |
+| `upload`   | Upload a photo to an event         |
 | `help`     | Show usage information             |
 | `version`  | Print version information          |
 
@@ -188,6 +190,21 @@ p6a download -e <event-id> -t ./favorites --favorite-only
 
 # Download a single media item to a file.
 p6a download -e <event-id> -m <media-id> -t photo.jpg
+```
+
+### `upload` — Upload photos
+
+Upload a local media file to an event. Prints the new media ID on success. On
+moderated events, uploads are created unapproved and require moderator approval
+before they appear to other guests.
+
+```bash
+# Upload a single photo.
+p6a upload -e <event-id> -s photo.jpg
+
+# Upload every JPEG in the current directory.
+EID=<event-id>
+for f in *.jpg; do p6a upload -e "$EID" -s "$f"; done
 ```
 
 ### `link`, `qr` & `card` — Share events
