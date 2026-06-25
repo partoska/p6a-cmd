@@ -1,6 +1,6 @@
 {
   "name": "@partoska/p6a-darwin",
-  "version": "1.11.2",
+  "version": "1.11.3",
   "description": "macOS (universal) native binary for @partoska/p6a.",
   "os": [
     "darwin"
@@ -10,7 +10,8 @@
     "arm64"
   ],
   "files": [
-    "bin/"
+    "bin/",
+    "README.md"
   ],
   "publishConfig": {
     "access": "public"

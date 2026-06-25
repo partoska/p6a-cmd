@@ -1,6 +1,6 @@
 {
   "name": "@partoska/p6a-linux-x64",
-  "version": "1.11.2",
+  "version": "1.11.3",
   "description": "Linux x64 native binary for @partoska/p6a.",
   "os": [
     "linux"
@@ -9,7 +9,8 @@
     "x64"
   ],
   "files": [
-    "bin/"
+    "bin/",
+    "README.md"
   ],
   "publishConfig": {
     "access": "public"
