@@ -1,6 +1,6 @@
 {
   "name": "@partoska/p6a-win32-x64",
-  "version": "1.11.3",
+  "version": "1.11.4",
   "description": "Windows x64 native binary for @partoska/p6a.",
   "os": [
     "win32"

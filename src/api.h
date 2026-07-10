@@ -245,7 +245,8 @@ PLInt plApiMediaUpload (PLChar *id, PLSize size, const PLChar *base,
  * @param token  OAuth bearer token.
  * @param event  UUID of the event.
  * @param path   Destination file path.
- * @param design Card design theme (bday, tech, match, forest).
+ * @param design Card design theme (bday, tech, match, forest, garden, gold,
+ *               romantic, silver, neon, nineties).
  * @param locale Language for card text (en, cs), or NULL for server default.
  * @param layout Card layout (single, business), or NULL for server default.
  * @param paper  Paper size (a4, letter), or NULL for server default.

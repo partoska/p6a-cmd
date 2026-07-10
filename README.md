@@ -2,7 +2,7 @@
 
 Manage and sync your event photos from [Partoska](https://www.partoska.com) — right from your terminal.
 
-[![Version](https://img.shields.io/badge/version-1.11.3-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v1.11.3)
+[![Version](https://img.shields.io/badge/version-1.11.4-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v1.11.4)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt)
 
 ## What is this?
@@ -396,7 +396,7 @@ p6a card -e <id> -d <design>
 **Options:**
 
 - `-e, --event <id>` - Event ID (required).
-- `-d, --design <name>` - Card design theme (required): `bday`, `tech`, `match`, `forest`, `gold`, `romantic`, `neon`.
+- `-d, --design <name>` - Card design theme (required): `bday`, `tech`, `match`, `forest`, `garden`, `gold`, `romantic`, `silver`, `neon`, `nineties`.
 - `-t, --target <file>` - Output file path (default: `<id>-card.pdf` or `<id>-card.jpg`).
 - `-F, --format <fmt>` - Output format: `pdf` (default), `jpg`.
 - `-l, --locale <loc>` - Language for card text: `en` (default), `cs`.

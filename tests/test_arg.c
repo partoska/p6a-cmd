@@ -366,6 +366,10 @@ testCard (void)
           "jpg",     "--no-background" };
   PLChar *argvPdf[] = { "p6a", "card", "-e", "event-uuid",
                         "-d",  "tech", "-F", "pdf" };
+  PLChar *argvSilver[] = { "p6a", "card", "-e", "event-uuid",
+                           "-d",  "silver" };
+  PLChar *argvNineties[] = { "p6a", "card", "-e", "event-uuid",
+                             "-d",  "nineties" };
   PLChar *argvBadFmt[] = { "p6a", "card", "-e", "event-uuid",
                            "-d",  "tech", "-F", "svg" };
   PLChar *argvNoEvent[] = { "p6a", "card", "-d", "bday" };
@@ -395,6 +399,12 @@ testCard (void)
 
   PL_ASSERT_EQ (parse (&args, 8, argvPdf), PL_EOK);
   PL_ASSERT_EQ (PL_ARGFMT (args.flags), PL_FMTPDF);
+
+  PL_ASSERT_EQ (parse (&args, 6, argvSilver), PL_EOK);
+  PL_ASSERT_STR_EQ (args.c.card.design, "silver");
+
+  PL_ASSERT_EQ (parse (&args, 6, argvNineties), PL_EOK);
+  PL_ASSERT_STR_EQ (args.c.card.design, "nineties");
 
   PL_ASSERT_EQ (parse (&args, 8, argvBadFmt), PL_EARG);
   PL_ASSERT_EQ (parse (&args, 4, argvNoEvent), PL_EARG);
