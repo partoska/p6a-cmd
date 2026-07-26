@@ -32,8 +32,11 @@
 
 #include "upload.h"
 #include "api.h"
+#include "fs.h"
 #include "logger.h"
 #include "types.h"
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #ifdef _WIN32
 #define plStricmp _stricmp
@@ -57,19 +60,113 @@ plUpload (const PLChar *base, const PLChar *bearer, const PLChar *event,
     }
 
   const PLChar *ext = strrchr (path, '.');
-  if (!ext
-      || (plStricmp (ext, ".jpg") != 0 && plStricmp (ext, ".jpeg") != 0
-          && plStricmp (ext, ".mp4") != 0 && plStricmp (ext, ".mov") != 0))
+  const PLChar *type;
+  if (ext && (plStricmp (ext, ".jpg") == 0 || plStricmp (ext, ".jpeg") == 0))
+    {
+      type = "image/jpeg";
+    }
+  else if (ext && plStricmp (ext, ".mp4") == 0)
+    {
+      type = "video/mp4";
+    }
+  else if (ext && plStricmp (ext, ".mov") == 0)
+    {
+      type = "video/quicktime";
+    }
+  else
     {
       PL_ERROR ("Unsupported file type; expected .jpg, .jpeg, .mp4, or .mov");
       return PL_EARG;
     }
 
-  PLChar id[64];
-  PLInt result = plApiMediaUpload (id, sizeof (id), base, bearer, event, path);
+  PLFile *file = plFileOpen (path, "rb");
+  if (!file)
+    {
+      PL_ERROR ("Failed to open file for reading: %s", path);
+      return PL_EFS;
+    }
+
+  if (fseek (file, 0, SEEK_END) != 0)
+    {
+      PL_ERROR ("Failed to seek file: %s", path);
+      plFileClose (file);
+      return PL_EFS;
+    }
+  PLLong filesize = ftell (file);
+  if (filesize <= 0 || fseek (file, 0, SEEK_SET) != 0)
+    {
+      PL_ERROR ("Failed to determine file size: %s", path);
+      plFileClose (file);
+      return PL_EFS;
+    }
+
+  PLChar session[64];
+  PLInt chunksize = 0;
+  PLInt total = 0;
+  PLInt result
+      = plApiMediaUploadStart (session, sizeof (session), &chunksize, &total,
+                                base, bearer, event, type, filesize);
   if (result != PL_EOK)
     {
-      PL_ERROR ("Failed to upload media");
+      PL_ERROR ("Failed to start upload session");
+      plFileClose (file);
+      return result;
+    }
+
+  if (chunksize <= 0 || total < 0)
+    {
+      PL_ERROR ("Invalid upload session parameters");
+      plFileClose (file);
+      plApiMediaUploadCancel (base, bearer, event, session);
+      return PL_ENET;
+    }
+
+  PLByte *buffer = malloc ((PLSize)chunksize);
+  if (!buffer)
+    {
+      PL_ERROR ("Out of memory");
+      plFileClose (file);
+      plApiMediaUploadCancel (base, bearer, event, session);
+      return PL_EMEM;
+    }
+
+  for (PLInt index = 0; index < total; ++index)
+    {
+      PLSize len = fread (buffer, 1, (PLSize)chunksize, file);
+      if (len == 0)
+        {
+          PL_ERROR ("Failed to read chunk %d from file: %s", index, path);
+          result = PL_EFS;
+          break;
+        }
+
+      result = plApiMediaUploadChunk (base, bearer, event, session, index,
+                                       buffer, len);
+      if (result != PL_EOK)
+        {
+          PL_ERROR ("Failed to upload chunk %d of %d", index + 1, total);
+          break;
+        }
+
+      PL_DEBUG ("Uploaded chunk %d of %d", index + 1, total);
+    }
+
+  free (buffer);
+  plFileClose (file);
+
+  if (result != PL_EOK)
+    {
+      plApiMediaUploadCancel (base, bearer, event, session);
+      return result;
+    }
+
+  PLChar id[64];
+  result
+      = plApiMediaUploadComplete (id, sizeof (id), base, bearer, event, session);
+  if (result != PL_EOK)
+    {
+      PL_ERROR ("Failed to complete upload");
+      plApiMediaUploadCancel (base, bearer, event, session);
       return result;
     }
 

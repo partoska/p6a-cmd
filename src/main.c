@@ -1336,10 +1336,10 @@ plDoHelp (void)
   PL_INFO ("  -e, --event <id>    Event ID (required)");
   PL_INFO (
       "  -d, --design <name> Card design: bday, tech, match, forest, garden, "
-      "gold, romantic, silver, neon, nineties (required)");
+      "gold, romantic, silver, neon, nineties, cottage (required)");
   PL_INFO (
       "  -t, --target <file> Output file path (default: <id>-card.pdf/jpg)");
-  PL_INFO ("  -l, --locale <loc>  Language: en (default), cs");
+  PL_INFO ("  -l, --locale <loc>  Language: en (default), cs, sk");
   PL_INFO ("  -L, --layout <lay>  Layout: single (default), business");
   PL_INFO ("  -p, --paper <pap>   Paper size: a4 (default), letter");
   PL_INFO ("  -F, --format <fmt>  Output format: pdf (default), jpg");

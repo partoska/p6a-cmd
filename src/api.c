@@ -39,12 +39,6 @@
 #include <curl/curl.h>
 #include <stdlib.h>
 #include <string.h>
-#ifdef _WIN32
-#define plStricmp _stricmp
-#else
-#include <strings.h>
-#define plStricmp strcasecmp
-#endif
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Macros
@@ -1442,41 +1436,23 @@ cleanup_media_approve:
 }
 
 PLInt
-plApiMediaUpload (PLChar *id, PLSize size, const PLChar *base,
-                  const PLChar *token, const PLChar *event, const PLChar *path)
+plApiMediaUploadStart (PLChar *session, PLSize sessize, PLInt *chunk,
+                       PLInt *total, const PLChar *base, const PLChar *token,
+                       const PLChar *event, const PLChar *type,
+                       PLLong filesize)
 {
-  if (!id || size == 0 || !base || !token || !event || !path)
+  if (!session || sessize == 0 || !chunk || !total || !base || !token
+      || !event || !type || filesize <= 0)
     {
-      PL_ERROR ("Endpoint, token, event, path, and/or id buffer are invalid");
+      PL_ERROR ("Session buffer, endpoint, token, event, type, and/or "
+                "filesize are invalid");
       return PL_EARG;
-    }
-
-  PLFile *file = plFileOpen (path, "rb");
-  if (!file)
-    {
-      PL_ERROR ("Failed to open file for reading: %s", path);
-      return PL_EFS;
-    }
-
-  if (fseek (file, 0, SEEK_END) != 0)
-    {
-      PL_ERROR ("Failed to seek file: %s", path);
-      plFileClose (file);
-      return PL_EFS;
-    }
-  long filesize = ftell (file);
-  if (filesize < 0 || fseek (file, 0, SEEK_SET) != 0)
-    {
-      PL_ERROR ("Failed to determine file size: %s", path);
-      plFileClose (file);
-      return PL_EFS;
     }
 
   CURL *curl = curl_easy_init ();
   if (!curl)
     {
       PL_ERROR ("Failed to initialize curl");
-      plFileClose (file);
       return PL_EMEM;
     }
 #ifdef _WIN32
@@ -1486,7 +1462,7 @@ plApiMediaUpload (PLChar *id, PLSize size, const PLChar *base,
   PLInt rc = PL_EOK;
 
   PLChar url[URL_MAX];
-  snprintf (url, PL_CHARSMAX (url), "%s/event/%s/media", base, event);
+  snprintf (url, PL_CHARSMAX (url), "%s/event/%s/media/upload", base, event);
   url[PL_CHARSMAX (url)] = '\0';
 
   PLChar authorization[AUTHORIZATION_MAX];
@@ -1494,41 +1470,42 @@ plApiMediaUpload (PLChar *id, PLSize size, const PLChar *base,
             "Authorization: Bearer %s", token);
   authorization[PL_CHARSMAX (authorization)] = '\0';
 
-  const PLChar *ext = strrchr (path, '.');
-  const PLChar *ctype;
-  if (ext && plStricmp (ext, ".mp4") == 0)
+  cJSON *body = cJSON_CreateObject ();
+  if (!body)
     {
-      ctype = "Content-Type: video/mp4";
+      PL_ERROR ("Out of memory");
+      curl_easy_cleanup (curl);
+      return PL_EMEM;
     }
-  else if (ext && plStricmp (ext, ".mov") == 0)
+  cJSON_AddStringToObject (body, "type", type);
+  cJSON_AddNumberToObject (body, "size", (double)filesize);
+  PLChar *bodystr = cJSON_PrintUnformatted (body);
+  cJSON_Delete (body);
+  if (!bodystr)
     {
-      ctype = "Content-Type: video/quicktime";
-    }
-  else
-    {
-      ctype = "Content-Type: image/jpeg";
+      PL_ERROR ("Out of memory");
+      curl_easy_cleanup (curl);
+      return PL_EMEM;
     }
 
   struct curl_slist *headers = NULL;
   headers = curl_slist_append (headers, "Accept: application/json");
-  headers = curl_slist_append (headers, ctype);
+  headers = curl_slist_append (headers, "Content-Type: application/json");
   headers = curl_slist_append (headers, "User-Agent: p6a/" PL_VERSION_STRING);
   headers = curl_slist_append (headers, authorization);
 
-  PLResponseBuffer response = { NULL, 0 };
-
+  PLResponseBuffer response = { .data = NULL, .size = 0 };
   curl_easy_setopt (curl, CURLOPT_URL, url);
   curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
   curl_easy_setopt (curl, CURLOPT_POST, 1L);
-  curl_easy_setopt (curl, CURLOPT_READDATA, file);
-  curl_easy_setopt (curl, CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t)filesize);
+  curl_easy_setopt (curl, CURLOPT_POSTFIELDS, bodystr);
   curl_easy_setopt (curl, CURLOPT_WRITEFUNCTION, plWriteCallback);
   curl_easy_setopt (curl, CURLOPT_WRITEDATA, &response);
 
   PL_DEBUG ("--- Api Request ---");
   PL_DEBUG ("URL: %s", url);
   PL_DSLOW ("%s", authorization);
-  PL_DEBUG ("File: %s (%ld bytes)", path, filesize);
+  PL_DSLOW ("%s", bodystr);
   plEnsureThrottle ();
   plThrottleAcquire (&throttle);
   CURLcode res = curl_easy_perform (curl);
@@ -1536,7 +1513,7 @@ plApiMediaUpload (PLChar *id, PLSize size, const PLChar *base,
     {
       PL_ERROR ("Request failed: %s", curl_easy_strerror (res));
       rc = PL_ENET;
-      goto cleanup_upload;
+      goto cleanup_upload_start;
     }
 
   CURLlong httpcode;
@@ -1547,14 +1524,14 @@ plApiMediaUpload (PLChar *id, PLSize size, const PLChar *base,
     {
       PL_ERROR ("Request failed with HTTP %ld", httpcode);
       rc = PL_ENET;
-      goto cleanup_upload;
+      goto cleanup_upload_start;
     }
 
   if (!response.data)
     {
       PL_ERROR ("Empty response");
       rc = PL_ENET;
-      goto cleanup_upload;
+      goto cleanup_upload_start;
     }
 
   {
@@ -1563,7 +1540,202 @@ plApiMediaUpload (PLChar *id, PLSize size, const PLChar *base,
       {
         PL_ERROR ("Failed to parse response JSON");
         rc = PL_ENET;
-        goto cleanup_upload;
+        goto cleanup_upload_start;
+      }
+
+    cJSON *jsession = cJSON_GetObjectItemCaseSensitive (json, "session");
+    cJSON *jsize = cJSON_GetObjectItemCaseSensitive (json, "size");
+    cJSON *jtotal = cJSON_GetObjectItemCaseSensitive (json, "total");
+    if (!cJSON_IsString (jsession) || jsession->valuestring == NULL
+        || !cJSON_IsNumber (jsize) || !cJSON_IsNumber (jtotal))
+      {
+        PL_ERROR ("Unexpected JSON structure in response");
+        cJSON_Delete (json);
+        rc = PL_ENET;
+        goto cleanup_upload_start;
+      }
+
+    strncpy (session, jsession->valuestring, sessize - 1);
+    session[sessize - 1] = '\0';
+    *chunk = jsize->valueint;
+    *total = jtotal->valueint;
+    cJSON_Delete (json);
+  }
+
+cleanup_upload_start:
+  curl_slist_free_all (headers);
+  free (response.data);
+  free (bodystr);
+  curl_easy_cleanup (curl);
+
+  return rc;
+}
+
+PLInt
+plApiMediaUploadChunk (const PLChar *base, const PLChar *token,
+                       const PLChar *event, const PLChar *session,
+                       PLInt index, const PLByte *data, PLSize len)
+{
+  if (!base || !token || !event || !session || !data || index < 0)
+    {
+      PL_ERROR ("Endpoint, token, event, session, and/or data are invalid");
+      return PL_EARG;
+    }
+
+  CURL *curl = curl_easy_init ();
+  if (!curl)
+    {
+      PL_ERROR ("Failed to initialize curl");
+      return PL_EMEM;
+    }
+#ifdef _WIN32
+  curl_easy_setopt (curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
+#endif
+
+  PLInt rc = PL_EOK;
+
+  PLChar url[URL_MAX];
+  snprintf (url, PL_CHARSMAX (url), "%s/event/%s/media/upload/%s/chunk/%d",
+            base, event, session, index);
+  url[PL_CHARSMAX (url)] = '\0';
+
+  PLChar authorization[AUTHORIZATION_MAX];
+  snprintf (authorization, PL_CHARSMAX (authorization),
+            "Authorization: Bearer %s", token);
+  authorization[PL_CHARSMAX (authorization)] = '\0';
+
+  struct curl_slist *headers = NULL;
+  headers = curl_slist_append (headers, "Accept: application/json");
+  headers
+      = curl_slist_append (headers, "Content-Type: application/octet-stream");
+  headers = curl_slist_append (headers, "User-Agent: p6a/" PL_VERSION_STRING);
+  headers = curl_slist_append (headers, authorization);
+
+  curl_easy_setopt (curl, CURLOPT_URL, url);
+  curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
+  curl_easy_setopt (curl, CURLOPT_CUSTOMREQUEST, "PUT");
+  curl_easy_setopt (curl, CURLOPT_POSTFIELDS, (const PLChar *)data);
+  curl_easy_setopt (curl, CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t)len);
+  curl_easy_setopt (curl, CURLOPT_WRITEFUNCTION, plDiscardCallback);
+
+  PL_DEBUG ("--- Api Request ---");
+  PL_DEBUG ("URL: %s", url);
+  PL_DSLOW ("%s", authorization);
+  PL_DEBUG ("Chunk %d (%lu bytes)", index, (unsigned long)len);
+  plEnsureThrottle ();
+  plThrottleAcquire (&throttle);
+  CURLcode res = curl_easy_perform (curl);
+  if (res != CURLE_OK)
+    {
+      PL_ERROR ("Request failed: %s", curl_easy_strerror (res));
+      rc = PL_ENET;
+      goto cleanup_upload_chunk;
+    }
+
+  CURLlong httpcode;
+  curl_easy_getinfo (curl, CURLINFO_RESPONSE_CODE, &httpcode);
+  PL_DEBUG ("--- Api Response (HTTP %ld) ---", httpcode);
+  if (httpcode != 200)
+    {
+      PL_ERROR ("Request failed with HTTP %ld", httpcode);
+      rc = PL_ENET;
+      goto cleanup_upload_chunk;
+    }
+
+cleanup_upload_chunk:
+  curl_slist_free_all (headers);
+  curl_easy_cleanup (curl);
+
+  return rc;
+}
+
+PLInt
+plApiMediaUploadComplete (PLChar *id, PLSize size, const PLChar *base,
+                          const PLChar *token, const PLChar *event,
+                          const PLChar *session)
+{
+  if (!id || size == 0 || !base || !token || !event || !session)
+    {
+      PL_ERROR (
+          "Id buffer, endpoint, token, event, and/or session are invalid");
+      return PL_EARG;
+    }
+
+  CURL *curl = curl_easy_init ();
+  if (!curl)
+    {
+      PL_ERROR ("Failed to initialize curl");
+      return PL_EMEM;
+    }
+#ifdef _WIN32
+  curl_easy_setopt (curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
+#endif
+
+  PLInt rc = PL_EOK;
+
+  PLChar url[URL_MAX];
+  snprintf (url, PL_CHARSMAX (url), "%s/event/%s/media/upload/%s/complete",
+            base, event, session);
+  url[PL_CHARSMAX (url)] = '\0';
+
+  PLChar authorization[AUTHORIZATION_MAX];
+  snprintf (authorization, PL_CHARSMAX (authorization),
+            "Authorization: Bearer %s", token);
+  authorization[PL_CHARSMAX (authorization)] = '\0';
+
+  struct curl_slist *headers = NULL;
+  headers = curl_slist_append (headers, "Accept: application/json");
+  headers = curl_slist_append (headers, "Content-Length: 0");
+  headers = curl_slist_append (headers, "User-Agent: p6a/" PL_VERSION_STRING);
+  headers = curl_slist_append (headers, authorization);
+
+  PLResponseBuffer response = { NULL, 0 };
+
+  curl_easy_setopt (curl, CURLOPT_URL, url);
+  curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
+  curl_easy_setopt (curl, CURLOPT_POST, 1L);
+  curl_easy_setopt (curl, CURLOPT_POSTFIELDSIZE, 0L);
+  curl_easy_setopt (curl, CURLOPT_WRITEFUNCTION, plWriteCallback);
+  curl_easy_setopt (curl, CURLOPT_WRITEDATA, &response);
+
+  PL_DEBUG ("--- Api Request ---");
+  PL_DEBUG ("URL: %s", url);
+  PL_DSLOW ("%s", authorization);
+  plEnsureThrottle ();
+  plThrottleAcquire (&throttle);
+  CURLcode res = curl_easy_perform (curl);
+  if (res != CURLE_OK)
+    {
+      PL_ERROR ("Request failed: %s", curl_easy_strerror (res));
+      rc = PL_ENET;
+      goto cleanup_upload_complete;
+    }
+
+  CURLlong httpcode;
+  curl_easy_getinfo (curl, CURLINFO_RESPONSE_CODE, &httpcode);
+  PL_DEBUG ("--- Api Response (HTTP %ld) ---", httpcode);
+  PL_DSLOW ("%s", response.data ? response.data : "(empty)");
+  if (httpcode != 200)
+    {
+      PL_ERROR ("Request failed with HTTP %ld", httpcode);
+      rc = PL_ENET;
+      goto cleanup_upload_complete;
+    }
+
+  if (!response.data)
+    {
+      PL_ERROR ("Empty response");
+      rc = PL_ENET;
+      goto cleanup_upload_complete;
+    }
+
+  {
+    cJSON *json = cJSON_Parse (response.data);
+    if (!json)
+      {
+        PL_ERROR ("Failed to parse response JSON");
+        rc = PL_ENET;
+        goto cleanup_upload_complete;
       }
 
     cJSON *jid = cJSON_GetObjectItemCaseSensitive (json, "id");
@@ -1572,7 +1744,7 @@ plApiMediaUpload (PLChar *id, PLSize size, const PLChar *base,
         PL_ERROR ("Missing or invalid 'id' field in response");
         cJSON_Delete (json);
         rc = PL_ENET;
-        goto cleanup_upload;
+        goto cleanup_upload_complete;
       }
 
     strncpy (id, jid->valuestring, size - 1);
@@ -1580,11 +1752,82 @@ plApiMediaUpload (PLChar *id, PLSize size, const PLChar *base,
     cJSON_Delete (json);
   }
 
-cleanup_upload:
+cleanup_upload_complete:
   curl_slist_free_all (headers);
   free (response.data);
   curl_easy_cleanup (curl);
-  plFileClose (file);
+
+  return rc;
+}
+
+PLInt
+plApiMediaUploadCancel (const PLChar *base, const PLChar *token,
+                        const PLChar *event, const PLChar *session)
+{
+  if (!base || !token || !event || !session)
+    {
+      PL_ERROR ("Endpoint, token, event, and/or session are invalid");
+      return PL_EARG;
+    }
+
+  CURL *curl = curl_easy_init ();
+  if (!curl)
+    {
+      PL_ERROR ("Failed to initialize curl");
+      return PL_EMEM;
+    }
+#ifdef _WIN32
+  curl_easy_setopt (curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
+#endif
+
+  PLInt rc = PL_EOK;
+
+  PLChar url[URL_MAX];
+  snprintf (url, PL_CHARSMAX (url), "%s/event/%s/media/upload/%s", base,
+            event, session);
+  url[PL_CHARSMAX (url)] = '\0';
+
+  PLChar authorization[AUTHORIZATION_MAX];
+  snprintf (authorization, PL_CHARSMAX (authorization),
+            "Authorization: Bearer %s", token);
+  authorization[PL_CHARSMAX (authorization)] = '\0';
+
+  struct curl_slist *headers = NULL;
+  headers = curl_slist_append (headers, "Accept: application/json");
+  headers = curl_slist_append (headers, "User-Agent: p6a/" PL_VERSION_STRING);
+  headers = curl_slist_append (headers, authorization);
+
+  curl_easy_setopt (curl, CURLOPT_URL, url);
+  curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
+  curl_easy_setopt (curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+  curl_easy_setopt (curl, CURLOPT_WRITEFUNCTION, plDiscardCallback);
+
+  PL_DEBUG ("--- Api Request ---");
+  PL_DEBUG ("URL: %s", url);
+  PL_DSLOW ("%s", authorization);
+  plEnsureThrottle ();
+  plThrottleAcquire (&throttle);
+  CURLcode res = curl_easy_perform (curl);
+  if (res != CURLE_OK)
+    {
+      PL_ERROR ("Request failed: %s", curl_easy_strerror (res));
+      rc = PL_ENET;
+      goto cleanup_upload_cancel;
+    }
+
+  CURLlong httpcode;
+  curl_easy_getinfo (curl, CURLINFO_RESPONSE_CODE, &httpcode);
+  PL_DEBUG ("--- Api Response (HTTP %ld) ---", httpcode);
+  if (httpcode != 200)
+    {
+      PL_ERROR ("Request failed with HTTP %ld", httpcode);
+      rc = PL_ENET;
+      goto cleanup_upload_cancel;
+    }
+
+cleanup_upload_cancel:
+  curl_slist_free_all (headers);
+  curl_easy_cleanup (curl);
 
   return rc;
 }

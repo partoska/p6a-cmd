@@ -224,19 +224,67 @@ PLInt plApiMediaApprove (const PLChar *base, const PLChar *token,
                          const PLChar *event, const PLChar *media);
 
 /**
- * Uploads a media file to an event.
+ * Starts a resumable chunked media upload session.
  *
- * @param id    Output buffer to receive the uploaded media UUID.
- * @param size  Capacity of the output buffer in bytes.
- * @param base  API base URL.
- * @param token OAuth bearer token.
- * @param event UUID of the event to upload to.
- * @param path  Path to the local media file to upload.
+ * @param session  Output buffer to receive the upload session UUID.
+ * @param sessize  Capacity of the session buffer in bytes.
+ * @param chunk    Output: required size in bytes for each non-final chunk.
+ * @param total    Output: total number of chunks in the upload.
+ * @param base     API base URL.
+ * @param token    OAuth bearer token.
+ * @param event    UUID of the event to upload to.
+ * @param type     MIME type of the complete media file.
+ * @param filesize Total media size in bytes.
  * @return PL_EOK on success, or a PL_E* error code on failure.
  */
-PLInt plApiMediaUpload (PLChar *id, PLSize size, const PLChar *base,
-                        const PLChar *token, const PLChar *event,
-                        const PLChar *path);
+PLInt plApiMediaUploadStart (PLChar *session, PLSize sessize, PLInt *chunk,
+                             PLInt *total, const PLChar *base,
+                             const PLChar *token, const PLChar *event,
+                             const PLChar *type, PLLong filesize);
+
+/**
+ * Uploads one chunk of a chunked media upload session.
+ *
+ * @param base    API base URL.
+ * @param token   OAuth bearer token.
+ * @param event   UUID of the event.
+ * @param session UUID of the upload session.
+ * @param index   Zero-based chunk index.
+ * @param data    Chunk bytes.
+ * @param len     Number of bytes in the chunk.
+ * @return PL_EOK on success, or a PL_E* error code on failure.
+ */
+PLInt plApiMediaUploadChunk (const PLChar *base, const PLChar *token,
+                             const PLChar *event, const PLChar *session,
+                             PLInt index, const PLByte *data, PLSize len);
+
+/**
+ * Completes a chunked media upload session once every chunk has been sent.
+ *
+ * @param id      Output buffer to receive the uploaded media UUID.
+ * @param size    Capacity of the id buffer in bytes.
+ * @param base    API base URL.
+ * @param token   OAuth bearer token.
+ * @param event   UUID of the event.
+ * @param session UUID of the upload session.
+ * @return PL_EOK on success, or a PL_E* error code on failure.
+ */
+PLInt plApiMediaUploadComplete (PLChar *id, PLSize size, const PLChar *base,
+                                const PLChar *token, const PLChar *event,
+                                const PLChar *session);
+
+/**
+ * Cancels a chunked media upload session, immediately freeing its reserved
+ * cache space.
+ *
+ * @param base    API base URL.
+ * @param token   OAuth bearer token.
+ * @param event   UUID of the event.
+ * @param session UUID of the upload session.
+ * @return PL_EOK on success, or a PL_E* error code on failure.
+ */
+PLInt plApiMediaUploadCancel (const PLChar *base, const PLChar *token,
+                              const PLChar *event, const PLChar *session);
 
 /**
  * Downloads the share card for an event as a PDF or JPEG.
@@ -246,8 +294,9 @@ PLInt plApiMediaUpload (PLChar *id, PLSize size, const PLChar *base,
  * @param event  UUID of the event.
  * @param path   Destination file path.
  * @param design Card design theme (bday, tech, match, forest, garden, gold,
- *               romantic, silver, neon, nineties).
- * @param locale Language for card text (en, cs), or NULL for server default.
+ *               romantic, silver, neon, nineties, cottage).
+ * @param locale Language for card text (en, cs, sk), or NULL for server
+ *               default.
  * @param layout Card layout (single, business), or NULL for server default.
  * @param paper  Paper size (a4, letter), or NULL for server default.
  * @param jpg    When true, requests JPEG format instead of PDF.
