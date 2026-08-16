@@ -2,8 +2,7 @@
 
 Manage and sync your event photos from [Partoska](https://www.partoska.com) — right from your terminal.
 
-[![Version](https://img.shields.io/badge/version-1.11.5-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v1.11.5)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt)
+[![Version](https://img.shields.io/badge/version-1.11.6-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v1.11.6) [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt)
 
 ## What is this?
 
@@ -399,7 +398,7 @@ p6a card -e <id> -d <design>
 - `-d, --design <name>` - Card design theme (required): `bday`, `tech`, `match`, `forest`, `garden`, `gold`, `romantic`, `silver`, `neon`, `nineties`, `cottage`.
 - `-t, --target <file>` - Output file path (default: `<id>-card.pdf` or `<id>-card.jpg`).
 - `-F, --format <fmt>` - Output format: `pdf` (default), `jpg`.
-- `-l, --locale <loc>` - Language for card text: `en` (default), `cs`, `sk`.
+- `-l, --locale <loc>` - Language for card text: `en` (default), `cs`, `sk`, `pl`, `ru`, `es`.
 - `-L, --layout <lay>` - Card layout: `single` (default, one large card per page), `business` (business-card-sized tiles).
 - `-p, --paper <pap>` - Paper size: `a4` (default), `letter`.
 - `-b, --no-background` - White background, suitable for black-and-white printing.

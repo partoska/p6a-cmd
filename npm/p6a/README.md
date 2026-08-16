@@ -219,7 +219,7 @@ p6a qr -e <event-id>
 p6a qr -e <event-id> -F svg
 
 # Download a printable share card (PDF by default, or JPEG).
-# Designs: bday, tech, match, forest, garden, gold, romantic, silver, neon, nineties.
+# Designs: bday, tech, match, forest, garden, gold, romantic, silver, neon, nineties, cottage.
 p6a card -e <event-id> -d bday
 p6a card -e <event-id> -d forest -L business -p letter -l cs
 ```

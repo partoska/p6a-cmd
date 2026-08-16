@@ -1339,7 +1339,8 @@ plDoHelp (void)
       "gold, romantic, silver, neon, nineties, cottage (required)");
   PL_INFO (
       "  -t, --target <file> Output file path (default: <id>-card.pdf/jpg)");
-  PL_INFO ("  -l, --locale <loc>  Language: en (default), cs, sk");
+  PL_INFO (
+      "  -l, --locale <loc>  Language: en (default), cs, sk, pl, ru, es");
   PL_INFO ("  -L, --layout <lay>  Layout: single (default), business");
   PL_INFO ("  -p, --paper <pap>   Paper size: a4 (default), letter");
   PL_INFO ("  -F, --format <fmt>  Output format: pdf (default), jpg");

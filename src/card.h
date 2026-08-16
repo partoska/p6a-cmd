@@ -51,8 +51,8 @@
  * @param output Destination file path, or NULL to use the default name.
  * @param design Card design theme (bday, tech, match, forest, garden, gold,
  *               romantic, silver, neon, nineties, cottage).
- * @param locale Language for card text (en, cs, sk), or NULL for server
- *               default.
+ * @param locale Language for card text (en, cs, sk, pl, ru, es), or NULL for
+ *               server default.
  * @param layout Card layout (single, business), or NULL for server default.
  * @param paper  Paper size (a4, letter), or NULL for server default.
  * @param jpg    When true, downloads JPEG format instead of PDF.
