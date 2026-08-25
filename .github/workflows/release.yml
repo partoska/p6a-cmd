@@ -79,6 +79,50 @@ jobs:
         with:
           name: packages_linux_arm64
           path: dist/
+  build-linux-armhf:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Register QEMU handlers
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm
+      - name: Build in Raspberry Pi OS (ARMv6)
+        run: |
+          docker run --rm --platform linux/arm/v6 \
+            -v "$PWD":/src -w /src \
+            --entrypoint /bin/bash \
+            balenalib/rpi-raspbian:bookworm -eu -o pipefail -c '
+              apt-get update -qq
+              DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+                build-essential cmake libcurl4-openssl-dev
+              cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DWITH_SANITIZERS=OFF -DWITH_VERBOSE_DEBUG=OFF -DWITH_TESTS=OFF -DCMAKE_VERBOSE_MAKEFILE=ON
+              cmake --build build --parallel "$(nproc)"
+              cpack --config build/CPackConfig.cmake -G "DEB;TGZ"
+              chown -R '"$(id -u):$(id -g)"' build dist
+            '
+      - name: Verify ARMv6 output
+        run: |
+          readelf -A build/src/p6a | grep -E "Tag_CPU_arch:|Tag_FP_arch:"
+          readelf -A build/src/p6a | grep -q "Tag_CPU_arch: v6" || {
+            echo "::error::binary is not ARMv6, it will not run on a Pi Zero W"
+            exit 1
+          }
+          docker run --rm --platform linux/arm/v6 \
+            -v "$PWD":/src -w /src \
+            --entrypoint /src/build/src/p6a \
+            balenalib/rpi-raspbian:bookworm version
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: p6a_linux_armhf
+          path: build/src/p6a
+      - name: Upload packages
+        uses: actions/upload-artifact@v6
+        with:
+          name: packages_linux_armhf
+          path: dist/
   build-windows-amd64:
     runs-on: windows-2025
     steps:
@@ -194,6 +238,7 @@ jobs:
       [
         build-linux-amd64,
         build-linux-arm64,
+        build-linux-armhf,
         build-windows-amd64,
         build-windows-arm64,
         build-macos,
@@ -216,6 +261,7 @@ jobs:
           VERSION=${VERSION#v}
           cp artifacts/p6a_linux_amd64/p6a p6a_${VERSION}_linux_amd64
           cp artifacts/p6a_linux_arm64/p6a p6a_${VERSION}_linux_arm64
+          cp artifacts/p6a_linux_armhf/p6a p6a_${VERSION}_linux_armhf
           cp artifacts/p6a_windows_amd64/p6a.exe p6a_${VERSION}_windows_amd64.exe
           cp artifacts/p6a_windows_arm64/p6a.exe p6a_${VERSION}_windows_arm64.exe
           cp artifacts/p6a_darwin_universal/p6a p6a_${VERSION}_darwin_universal
@@ -223,7 +269,7 @@ jobs:
         run: |
           VERSION=${{ github.ref_name }}
           VERSION=${VERSION#v}
-          gh release upload ${{ github.ref_name }} p6a_${VERSION}_linux_amd64 p6a_${VERSION}_linux_arm64 p6a_${VERSION}_windows_amd64.exe p6a_${VERSION}_windows_arm64.exe p6a_${VERSION}_darwin_universal --clobber
+          gh release upload ${{ github.ref_name }} p6a_${VERSION}_linux_amd64 p6a_${VERSION}_linux_arm64 p6a_${VERSION}_linux_armhf p6a_${VERSION}_windows_amd64.exe p6a_${VERSION}_windows_arm64.exe p6a_${VERSION}_darwin_universal --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Upload packages to release
