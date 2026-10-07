@@ -41,8 +41,9 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 /**
- * Initiates a device code OAuth 2.0 flow and blocks until the user
- * authorizes the request or the poll times out.
+ * Runs the OAuth 2.0 device authorization grant (RFC 8628): prints the URL
+ * and user code to approve in a browser, then blocks until the user decides
+ * or the code expires.
  *
  * On success, writes the resulting tokens to the INI file at ini.
  *

@@ -50,6 +50,7 @@ typedef struct PLCfgOAuth
   PLChar *client;
   PLChar *redirect;
   PLChar *authorize;
+  PLChar *device;
   PLChar *token;
   PLChar *scope;
 } PLCfgOAuth;

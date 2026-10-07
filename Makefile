@@ -27,7 +27,7 @@
 
 # Project configuration.
 PROJECT = p6a
-VERSION = 1.11.7
+VERSION = 1.12.0
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
 

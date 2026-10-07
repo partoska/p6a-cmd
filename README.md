@@ -2,7 +2,7 @@
 
 Manage and sync your event photos from [Partoska](https://www.partoska.com) — right from your terminal.
 
-[![Version](https://img.shields.io/badge/version-1.11.7-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v1.11.7) [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt)
+[![Version](https://img.shields.io/badge/version-1.12.0-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v1.12.0) [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt)
 
 ## What is this?
 
@@ -118,6 +118,11 @@ Connect your Partoska account.
 ```bash
 p6a login
 ```
+
+The tool prints a link and a short code such as `BCDF-GHJK`. Open the link in
+a browser on this or any other device, such as your phone, check that it shows
+the same code, and allow access. The tool waits until you do, then saves the
+login. The code expires after 15 minutes.
 
 **Options:**
 
@@ -395,10 +400,10 @@ p6a card -e <id> -d <design>
 **Options:**
 
 - `-e, --event <id>` - Event ID (required).
-- `-d, --design <name>` - Card design theme (required): `bday`, `tech`, `match`, `forest`, `garden`, `gold`, `romantic`, `silver`, `neon`, `nineties`, `cottage`.
+- `-d, --design <name>` - Card design theme (required): `bday`, `tech`, `match`, `forest`, `garden`, `gold`, `romantic`, `silver`, `neon`, `nineties`, `cottage`, `wish`, `velvet`, `hallows`.
 - `-t, --target <file>` - Output file path (default: `<id>-card.pdf` or `<id>-card.jpg`).
 - `-F, --format <fmt>` - Output format: `pdf` (default), `jpg`.
-- `-l, --locale <loc>` - Language for card text: `en` (default), `cs`, `sk`, `pl`, `ru`, `es`.
+- `-l, --locale <loc>` - Language for card text: `en` (default), `cs`, `sk`, `pl`, `ru`, `es`, `de`, `fr`, `it`, `nl`, `uk`.
 - `-L, --layout <lay>` - Card layout: `single` (default, one large card per page), `business` (business-card-sized tiles).
 - `-p, --paper <pap>` - Paper size: `a4` (default), `letter`.
 - `-b, --no-background` - White background, suitable for black-and-white printing.

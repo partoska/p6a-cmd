@@ -34,9 +34,7 @@
 #include "base64.h"
 #include "cJSON.h"
 #include "config.h"
-#include "hash.h"
 #include "logger.h"
-#include "rng.h"
 #include "types.h"
 #include <curl/curl.h>
 #include <stdio.h>
@@ -44,19 +42,20 @@
 #include <string.h>
 #include <time.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Macros
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#define VERIFIER_LENGTH (64)
-#define VERIFIER_MAX ((VERIFIER_LENGTH) + (16))
-#define STATE_LENGTH (32)
-#define STATE_MAX (PL_BASE64_ENCODED_LEN (STATE_LENGTH) + (16))
-#define CHALLENGE_MAX (PL_BASE64_ENCODED_LEN (PL_HASH_DIGEST_SIZE) + (16))
-#define INPUT_MAX (128)
-#define URL_MAX (1024)
 #define CREDENTIALS_MAX (128)
 #define FORMAT_MAX (256)
+#define DEVICE_GRANT "urn:ietf:params:oauth:grant-type:device_code"
+#define INTERVAL_DEFAULT (5)
+#define SLOW_DOWN_SECS (5)
+#define POLL_FAILURES_MAX (3)
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Types - Private
@@ -100,202 +99,285 @@ plUrlEncode (CURL *curl, const PLChar *s)
   return curl_easy_escape (curl, s, 0);
 }
 
-static PLInt
-plGenVerifier (PLChar *verifier, PLSize len)
+static void
+plSleep (PLLong secs)
 {
-  PLByte bytes[VERIFIER_LENGTH];
-  if (len < sizeof (bytes))
-    {
-      return PL_EMEM;
-    }
-
-  PLInt result = plGenRandomBytes (bytes, VERIFIER_LENGTH);
-  if (result != PL_EOK)
-    {
-      return result;
-    }
-
-  for (PLSize i = 0; i < sizeof (bytes); ++i)
-    {
-      verifier[i] = plBase64Char (bytes[i]);
-    }
-
-  // Optional null termination.
-  if (len > sizeof (bytes))
-    {
-      verifier[sizeof (bytes)] = '\0';
-    }
-
-  return PL_EOK;
+#ifdef _WIN32
+  Sleep ((DWORD)(secs * 1000));
+#else
+  struct timespec ts;
+  ts.tv_sec = (time_t)secs;
+  ts.tv_nsec = 0;
+  nanosleep (&ts, NULL);
+#endif
 }
 
-static PLInt
-plGenChallenge (PLChar *challenge, PLSize len, const PLChar *verifier)
-{
-  PLHashCtx ctx;
-  PLByte hash[PL_HASH_DIGEST_SIZE];
-  if (len < PL_BASE64_ENCODED_LEN (sizeof (hash)))
-    {
-      return PL_EMEM;
-    }
-
-  plHashInit (&ctx);
-  plHashUpdate (&ctx, (const PLByte *)verifier, strlen (verifier));
-  plHashFinal (&ctx, hash);
-
-  PLInt result = plBase64UrlEncode (challenge, len, hash, PL_HASH_DIGEST_SIZE);
-  if (result != PL_EOK)
-    {
-      return result;
-    }
-
-  // Optional null termination.
-  if (len > PL_BASE64_ENCODED_LEN (sizeof (hash)))
-    {
-      challenge[PL_BASE64_ENCODED_LEN (sizeof (hash))] = '\0';
-    }
-
-  return PL_EOK;
-}
-
-static PLInt
-plGenState (PLChar *state, PLSize len)
-{
-  PLByte bytes[STATE_LENGTH];
-  if (len < PL_BASE64_ENCODED_LEN (sizeof (bytes)))
-    {
-      return PL_EMEM;
-    }
-
-  PLInt result = plGenRandomBytes (bytes, STATE_LENGTH);
-  if (result != PL_EOK)
-    {
-      return result;
-    }
-
-  result = plBase64UrlEncode (state, len, bytes, STATE_LENGTH);
-  if (result != PL_EOK)
-    {
-      return result;
-    }
-
-  // Optional null termination.
-  if (len > PL_BASE64_ENCODED_LEN (sizeof (bytes)))
-    {
-      state[PL_BASE64_ENCODED_LEN (sizeof (bytes))] = '\0';
-    }
-
-  return PL_EOK;
-}
-
+/*
+ * Posts a form to an OAuth endpoint and returns the response body, whatever
+ * its status: the device flow reads its errors from 4xx bodies. Returns NULL
+ * only when the request itself failed.
+ */
 static PLChar *
-plBuildUrl (const PLCfgOAuth *config, const PLChar *challenge,
-            const PLChar *state)
+plPostForm (const PLChar *url, const PLChar *payload, CURLlong *httpcode)
 {
-  if (config == NULL)
-    {
-      PL_DEBUG ("Invalid config");
-      return NULL;
-    }
-
   CURL *curl = curl_easy_init ();
   if (!curl)
     {
-      PL_DEBUG ("Failed to initialize cURL");
+      PL_DEBUG ("Failed to initialize curl");
       return NULL;
     }
+#ifdef _WIN32
+  curl_easy_setopt (curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
+#endif
 
-  PLChar *eredirect = plUrlEncode (curl, config->redirect);
-  PLChar *eclient = plUrlEncode (curl, config->client);
-  PLChar *echallenge = plUrlEncode (curl, challenge);
-  PLChar *estate = plUrlEncode (curl, state);
-  PLChar *escope = plUrlEncode (curl, config->scope);
-  if (!eredirect || !eclient || !echallenge || !estate || !escope)
+  struct curl_slist *headers = NULL;
+  headers = curl_slist_append (
+      headers, "Content-Type: application/x-www-form-urlencoded");
+  headers = curl_slist_append (headers, "User-Agent: p6a/" PL_VERSION_STRING);
+
+  PLResponseBuffer response = { .data = NULL, .size = 0 };
+  curl_easy_setopt (curl, CURLOPT_URL, url);
+  curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
+  curl_easy_setopt (curl, CURLOPT_POSTFIELDS, payload);
+  curl_easy_setopt (curl, CURLOPT_WRITEFUNCTION, plWriteCallback);
+  curl_easy_setopt (curl, CURLOPT_WRITEDATA, &response);
+
+  PL_DEBUG ("--- OAuth Request ---");
+  PL_DEBUG ("URL: %s", url);
+  PL_DSLOW ("POST data: %s", payload);
+  PLChar *result = NULL;
+  CURLcode res = curl_easy_perform (curl);
+  if (res != CURLE_OK)
     {
-      curl_free (eredirect);
-      curl_free (eclient);
-      curl_free (echallenge);
-      curl_free (estate);
-      curl_free (escope);
-      curl_easy_cleanup (curl);
-      return NULL;
+      PL_DEBUG ("OAuth request failed: %s", curl_easy_strerror (res));
+      goto cleanup;
     }
 
-  PLSize size = strlen (config->authorize);
-  size += strlen (eredirect);
-  size += strlen (eclient);
-  size += strlen (echallenge);
-  size += strlen (estate);
-  size += strlen (escope);
-  size += FORMAT_MAX;
-  PLChar *url = malloc (size);
-  if (!url)
-    {
-      curl_free (eredirect);
-      curl_free (eclient);
-      curl_free (echallenge);
-      curl_free (estate);
-      curl_free (escope);
-      curl_easy_cleanup (curl);
-      return NULL;
-    }
-  snprintf (url, size - 1,
-            "%s?response_type=code"
-            "&client_id=%s"
-            "&redirect_uri=%s"
-            "&code_challenge=%s"
-            "&code_challenge_method=S256"
-            "&state=%s"
-            "&scope=%s",
-            config->authorize, eclient, eredirect, echallenge, estate, escope);
-  url[size - 1] = '\0';
+  curl_easy_getinfo (curl, CURLINFO_RESPONSE_CODE, httpcode);
+  PL_DEBUG ("--- OAuth Response (HTTP %ld) ---", *httpcode);
+  PL_DSLOW ("%s", response.data ? response.data : "(empty)");
+  result = response.data ? response.data : strdup ("{}");
+  response.data = NULL;
 
-  curl_free (eredirect);
-  curl_free (eclient);
-  curl_free (echallenge);
-  curl_free (estate);
-  curl_free (escope);
+cleanup:
+  curl_slist_free_all (headers);
+  free (response.data);
   curl_easy_cleanup (curl);
 
-  return url;
+  return result;
+}
+
+static PLChar *
+plRequestDeviceCode (const PLCfgOAuth *config, CURLlong *httpcode)
+{
+  CURL *curl = curl_easy_init ();
+  if (!curl)
+    {
+      PL_DEBUG ("Failed to initialize curl");
+      return NULL;
+    }
+
+  PLChar *result = NULL;
+  PLChar *eclient = plUrlEncode (curl, config->client);
+  PLChar *escope = plUrlEncode (curl, config->scope);
+  if (!eclient || !escope)
+    {
+      PL_DEBUG ("Failed to URL encode device request");
+      goto cleanup;
+    }
+
+  PLSize size = strlen (eclient) + strlen (escope) + FORMAT_MAX;
+  PLChar *payload = malloc (size);
+  if (!payload)
+    {
+      PL_DEBUG ("Out of memory");
+      goto cleanup;
+    }
+
+  snprintf (payload, size, "client_id=%s&scope=%s", eclient, escope);
+  result = plPostForm (config->device, payload, httpcode);
+  free (payload);
+
+cleanup:
+  curl_free (escope);
+  curl_free (eclient);
+  curl_easy_cleanup (curl);
+
+  return result;
+}
+
+static PLChar *
+plPollDeviceCode (const PLCfgOAuth *config, const PLChar *code,
+                  CURLlong *httpcode)
+{
+  CURL *curl = curl_easy_init ();
+  if (!curl)
+    {
+      PL_DEBUG ("Failed to initialize curl");
+      return NULL;
+    }
+
+  PLChar *result = NULL;
+  PLChar *eclient = plUrlEncode (curl, config->client);
+  PLChar *ecode = plUrlEncode (curl, code);
+  PLChar *egrant = plUrlEncode (curl, DEVICE_GRANT);
+  if (!eclient || !ecode || !egrant)
+    {
+      PL_DEBUG ("Failed to URL encode token request");
+      goto cleanup;
+    }
+
+  PLSize size = strlen (eclient) + strlen (ecode) + strlen (egrant);
+  size += FORMAT_MAX;
+  PLChar *payload = malloc (size);
+  if (!payload)
+    {
+      PL_DEBUG ("Out of memory");
+      goto cleanup;
+    }
+
+  snprintf (payload, size, "grant_type=%s&client_id=%s&device_code=%s",
+            egrant, eclient, ecode);
+  result = plPostForm (config->token, payload, httpcode);
+  free (payload);
+
+cleanup:
+  curl_free (egrant);
+  curl_free (ecode);
+  curl_free (eclient);
+  curl_easy_cleanup (curl);
+
+  return result;
+}
+
+static const PLChar *
+plJsonString (const cJSON *json, const PLChar *name)
+{
+  const cJSON *item = cJSON_GetObjectItemCaseSensitive (json, name);
+  return (cJSON_IsString (item) && item->valuestring != NULL)
+             ? item->valuestring
+             : NULL;
 }
 
 static PLInt
-plRedirectWait (PLChar *code, PLSize size)
+plStoreTokens (PLCfg *config, const PLChar *ini, const cJSON *json)
 {
-  PL_INFO ("");
-  PL_INFO ("Enter pairing code below:");
-  fprintf (stdout, "> ");
-  fflush (stdout);
-  if (fgets (code, size, stdin) == NULL)
+  cJSON *expires = cJSON_GetObjectItemCaseSensitive (json, "expires_in");
+  if (!cJSON_IsNumber (expires) || expires->valueint <= 0)
     {
-      PL_DEBUG ("Failed to read input");
+      PL_ERROR ("Field 'expires_in' not found or invalid in response");
       return PL_EARG;
     }
 
-  PL_INFO ("");
-
-  PLSize len = strlen (code);
-  if (len > 0 && code[len - 1] == '\n')
+  const PLChar *access = plJsonString (json, "access_token");
+  if (!access)
     {
-      code[len - 1] = '\0';
+      PL_ERROR ("Field 'access_token' not found or invalid in response");
+      return PL_EARG;
+    }
+
+  const PLChar *refresh = plJsonString (json, "refresh_token");
+  if (!refresh)
+    {
+      PL_ERROR ("Field 'refresh_token' not found or invalid in response");
+      return PL_EARG;
+    }
+
+  PLTime exp = time (NULL) + expires->valueint;
+  if (plCfgSetLogin (config, access, refresh, exp) < 0)
+    {
+      PL_ERROR ("Failed to set login information");
+      return PL_EARG;
+    }
+
+  if (plCfgSave (config, ini) < 0)
+    {
+      PL_ERROR ("Failed to save configuration");
+      return PL_EARG;
     }
 
   return PL_EOK;
 }
 
-static PLBool
-plConfirm (const PLChar *prompt)
+/*
+ * Polls the token endpoint until the user decides or the code expires
+ * (RFC 8628, section 3.4). Returns PL_EOK once the tokens are saved.
+ */
+static PLInt
+plAwaitDeviceCode (PLCfg *config, const PLChar *ini, const PLChar *code,
+                   PLLong interval, PLTime deadline)
 {
-  fprintf (stdout, "%s (Enter=Yes,C=Cancel):", prompt);
-  fflush (stdout);
-  PLInt c = getchar ();
-  if (c == EOF)
+  const PLCfgOAuth *auth = config->oauth;
+  PLInt failures = 0;
+  while (time (NULL) < deadline)
     {
-      PL_DEBUG ("Failed to read input");
-      return PL_FALSE;
+      plSleep (interval);
+
+      CURLlong httpcode = 0;
+      PLChar *body = plPollDeviceCode (auth, code, &httpcode);
+      if (!body)
+        {
+          // A dropped connection is not the user's answer, try again.
+          if (++failures >= POLL_FAILURES_MAX)
+            {
+              PL_ERROR ("Could not reach Partoska, please try again later");
+              return PL_ENET;
+            }
+          continue;
+        }
+      failures = 0;
+
+      cJSON *json = cJSON_Parse (body);
+      free (body);
+      if (!json)
+        {
+          PL_ERROR ("Failed to parse JSON response");
+          return PL_EARG;
+        }
+
+      if (httpcode == 200)
+        {
+          PLInt result = plStoreTokens (config, ini, json);
+          cJSON_Delete (json);
+          return result;
+        }
+
+      const PLChar *error = plJsonString (json, "error");
+      PLInt result = PL_EOK;
+      if (error && strcmp (error, "authorization_pending") == 0)
+        {
+          PL_DEBUG ("Authorization pending ...");
+        }
+      else if (error && strcmp (error, "slow_down") == 0)
+        {
+          interval += SLOW_DOWN_SECS;
+          PL_DEBUG ("Slowing down to %ld seconds ...", interval);
+        }
+      else if (error && strcmp (error, "access_denied") == 0)
+        {
+          PL_ERROR ("Login denied in the browser");
+          result = PL_EARG;
+        }
+      else if (error && strcmp (error, "expired_token") == 0)
+        {
+          PL_ERROR ("The code has expired, please run login again");
+          result = PL_EARG;
+        }
+      else
+        {
+          PL_ERROR ("Login failed (%s)", error ? error : "unknown error");
+          result = PL_ENET;
+        }
+
+      cJSON_Delete (json);
+      if (result != PL_EOK)
+        {
+          return result;
+        }
     }
-  return (c == '\n');
+
+  PL_ERROR ("The code has expired, please run login again");
+  return PL_EARG;
 }
 
 static PLChar *
@@ -460,131 +542,6 @@ cleanup_curl:
   return result;
 }
 
-static PLChar *
-plExchangeCode (const PLCfgOAuth *config, const PLChar *code,
-                const PLChar *verifier)
-{
-  if (config == NULL)
-    {
-      PL_DEBUG ("Invalid configuration");
-      return NULL;
-    }
-
-  CURL *curl = curl_easy_init ();
-  if (!curl)
-    {
-      PL_DEBUG ("Failed to initialize curl");
-      return NULL;
-    }
-#ifdef _WIN32
-  curl_easy_setopt (curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
-#endif
-
-  PLChar *result = NULL;
-  PLChar *eredirect = plUrlEncode (curl, config->redirect);
-  PLChar *ecode = plUrlEncode (curl, code);
-  PLChar *everifier = plUrlEncode (curl, verifier);
-  if (!eredirect || !ecode || !everifier)
-    {
-      PL_DEBUG ("Failed to URL encode redirect uri");
-      goto cleanup_curl;
-    }
-
-  PLSize size = strlen (eredirect);
-  size += strlen (ecode);
-  size += strlen (everifier);
-  size += FORMAT_MAX;
-  PLChar *payload = malloc (size);
-  if (!payload)
-    {
-      PL_DEBUG ("Out of memory");
-      goto cleanup_curl;
-    }
-
-  snprintf (payload, size - 1,
-            "grant_type=authorization_code"
-            "&code=%s"
-            "&redirect_uri=%s"
-            "&code_verifier=%s",
-            ecode, eredirect, everifier);
-  payload[size - 1] = '\0';
-
-  PLChar cred[CREDENTIALS_MAX];
-  snprintf (cred, PL_CHARSMAX (cred), "%s:", config->client);
-  cred[PL_CHARSMAX (cred) - 1] = '\0';
-
-  PLSize clen = strlen (cred);
-  PLChar ecred[PL_BASE64_ENCODED_LEN (sizeof (cred)) + 1];
-  if (plBase64Encode (ecred, PL_CHARSMAX (ecred), (PLByte *)cred, clen)
-      != PL_EOK)
-    {
-      PL_DEBUG ("Failed to encode auth");
-      goto cleanup_payload;
-    }
-  ecred[PL_CHARSMAX (ecred)] = '\0';
-
-  PLChar authorization[sizeof (ecred) + 64];
-  snprintf (authorization, PL_CHARSMAX (authorization),
-            "Authorization: Basic %s", ecred);
-  authorization[PL_CHARSMAX (authorization) - 1] = '\0';
-
-  struct curl_slist *headers = NULL;
-  headers = curl_slist_append (
-      headers, "Content-Type: application/x-www-form-urlencoded");
-  headers = curl_slist_append (headers, "User-Agent: p6a/" PL_VERSION_STRING);
-  headers = curl_slist_append (headers, authorization);
-
-  PLResponseBuffer response = { .data = NULL, .size = 0 };
-  curl_easy_setopt (curl, CURLOPT_URL, config->token);
-  curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
-  curl_easy_setopt (curl, CURLOPT_POSTFIELDS, payload);
-  curl_easy_setopt (curl, CURLOPT_WRITEFUNCTION, plWriteCallback);
-  curl_easy_setopt (curl, CURLOPT_WRITEDATA, &response);
-
-  PL_DEBUG ("--- Token Exchange Request ---");
-  PL_DEBUG ("URL: %s", config->token);
-  PL_DSLOW ("Authorization: Basic %s", ecred);
-  PL_DSLOW ("POST data: %s", payload);
-  CURLcode res = curl_easy_perform (curl);
-  if (res != CURLE_OK)
-    {
-      PL_DEBUG ("Token exchange failed: %s", curl_easy_strerror (res));
-      goto cleanup_response;
-    }
-
-  CURLlong httpcode;
-  curl_easy_getinfo (curl, CURLINFO_RESPONSE_CODE, &httpcode);
-  PL_DEBUG ("--- Token Exchange Response (HTTP %ld) ---", httpcode);
-  PL_DSLOW ("%s", response.data ? response.data : "(empty)");
-  if (httpcode != 200)
-    {
-      PL_DEBUG ("Token exchange failed with HTTP %ld", httpcode);
-      goto cleanup_response;
-    }
-
-  if (httpcode == 200)
-    {
-      result = response.data ? strdup (response.data) : strdup ("{}");
-    }
-  else
-    {
-      PL_DEBUG ("Token exchange failed with HTTP %ld", httpcode);
-    }
-
-cleanup_response:
-  curl_slist_free_all (headers);
-  free (response.data);
-cleanup_payload:
-  free (payload);
-cleanup_curl:
-  curl_free (everifier);
-  curl_free (ecode);
-  curl_free (eredirect);
-  curl_easy_cleanup (curl);
-
-  return result;
-}
-
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Definitions - Public
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
@@ -607,161 +564,72 @@ plOAuthLogin (PLCfg *config, const PLChar *ini)
   const PLCfgOAuth *auth = config->oauth;
   PL_DSLOW ("OAuth Configuration:");
   PL_DSLOW ("  Client:         %s", auth->client);
-  PL_DSLOW ("  Redirect:       %s", auth->redirect);
-  PL_DSLOW ("  Authorize:      %s", auth->authorize);
+  PL_DSLOW ("  Device:         %s", auth->device);
   PL_DSLOW ("  Token:          %s", auth->token);
   PL_DSLOW ("  Scope:          %s", auth->scope);
 
-  PLChar verifier[VERIFIER_MAX];
-  PLInt result = plGenVerifier (verifier, PL_CHARSMAX (verifier));
-  if (result != PL_EOK)
+  CURLlong httpcode = 0;
+  PLChar *body = plRequestDeviceCode (auth, &httpcode);
+  if (!body)
     {
-      PL_ERROR ("Failed to generate code verifier");
-      return result;
-    }
-  verifier[PL_CHARSMAX (verifier)] = '\0';
-
-  PLChar challenge[CHALLENGE_MAX];
-  result = plGenChallenge (challenge, PL_CHARSMAX (challenge), verifier);
-  if (result != PL_EOK)
-    {
-      PL_ERROR ("Failed to generate code challenge");
-      return result;
-    }
-  challenge[PL_CHARSMAX (challenge)] = '\0';
-
-  PLChar state[STATE_MAX];
-  result = plGenState (state, PL_CHARSMAX (state));
-  if (result != PL_EOK)
-    {
-      PL_ERROR ("Failed to generate state");
-      return result;
-    }
-  state[PL_CHARSMAX (state)] = '\0';
-
-  PL_DSLOW ("Generated PKCE Parameters:");
-  PL_DSLOW ("  Code Verifier:  %s", verifier);
-  PL_DSLOW ("  Code Challenge: %s", challenge);
-  PL_DSLOW ("  State:          %s", state);
-  PLChar *url = plBuildUrl (auth, challenge, state);
-  if (!url)
-    {
-      PL_ERROR ("Failed to build authorization URL");
-      return PL_EMEM;
+      PL_ERROR ("Could not reach Partoska, please try again later");
+      return PL_ENET;
     }
 
-  if (!plConfirm ("Step 1/2: Show authorization URL?"))
-    {
-      PL_INFO ("");
-      PL_INFO ("Login cancelled by user.");
-      result = PL_EOK;
-      goto cleanup_url;
-    }
-
-  PL_INFO ("");
-  PL_INFO ("Open this URL in your browser:");
-  PL_INFO ("%s", url);
-  PL_INFO ("");
-
-  if (!plConfirm ("Step 2/2: Ready to paste copied code?"))
-    {
-      PL_INFO ("");
-      PL_INFO ("Login cancelled by user.");
-      result = PL_EOK;
-      goto cleanup_url;
-    }
-
-  PLChar input[INPUT_MAX];
-  result = plRedirectWait (input, sizeof (input));
-  if (result != PL_EOK)
-    {
-      PL_ERROR ("No pairing code received");
-      goto cleanup_url;
-    }
-
-  PLChar *dot = strchr (input, '.');
-  if (!dot)
-    {
-      PL_ERROR ("Invalid pairing code format");
-      result = PL_EARG;
-      goto cleanup_url;
-    }
-
-  *dot = '\0';
-  PLChar *icode = input;
-  PLChar *istate = dot + 1;
-  if (strcmp (istate, state) != 0)
-    {
-      PL_ERROR ("State mismatch");
-      result = PL_EARG;
-      goto cleanup_url;
-    }
-
-  PLChar *tokens = plExchangeCode (auth, icode, verifier);
-  if (!tokens)
-    {
-      PL_ERROR ("Could not exchange code");
-      result = PL_ENET;
-      goto cleanup_url;
-    }
-
-  cJSON *json = cJSON_Parse (tokens);
+  cJSON *json = cJSON_Parse (body);
+  free (body);
   if (!json)
     {
       PL_ERROR ("Failed to parse JSON response");
-      result = PL_EARG;
-      goto cleanup_tokens;
+      return PL_EARG;
     }
 
+  PLInt result = PL_EOK;
+  if (httpcode != 200)
+    {
+      const PLChar *error = plJsonString (json, "error");
+      PL_ERROR ("Could not start login (%s)", error ? error : "unknown error");
+      result = PL_ENET;
+      goto cleanup_json;
+    }
+
+  const PLChar *code = plJsonString (json, "device_code");
+  const PLChar *user = plJsonString (json, "user_code");
+  const PLChar *uri = plJsonString (json, "verification_uri");
+  const PLChar *complete = plJsonString (json, "verification_uri_complete");
   cJSON *expires = cJSON_GetObjectItemCaseSensitive (json, "expires_in");
-  if (!cJSON_IsNumber (expires) || expires->valueint <= 0)
+  cJSON *interval = cJSON_GetObjectItemCaseSensitive (json, "interval");
+  if (!code || !user || !uri || !cJSON_IsNumber (expires)
+      || expires->valueint <= 0)
     {
-      PL_ERROR ("Field 'expires_in' not found or invalid in response");
+      PL_ERROR ("Invalid device authorization response");
       result = PL_EARG;
       goto cleanup_json;
     }
 
-  cJSON *access = cJSON_GetObjectItemCaseSensitive (json, "access_token");
-  if (!cJSON_IsString (access) || (access->valuestring == NULL))
-    {
-      PL_ERROR ("Field 'access_token' not found or invalid in response");
-      result = PL_EARG;
-      goto cleanup_json;
-    }
+  PLLong wait = (cJSON_IsNumber (interval) && interval->valueint > 0)
+                    ? (PLLong)interval->valueint
+                    : INTERVAL_DEFAULT;
+  PLTime deadline = time (NULL) + expires->valueint;
 
-  cJSON *refresh = cJSON_GetObjectItemCaseSensitive (json, "refresh_token");
-  if (!cJSON_IsString (refresh) || (refresh->valuestring == NULL))
-    {
-      PL_ERROR ("Field 'refresh_token' not found or invalid in response");
-      result = PL_EARG;
-      goto cleanup_json;
-    }
+  PL_INFO ("Open this URL in a browser, on this or any other device:");
+  PL_INFO ("");
+  PL_INFO ("  %s", complete ? complete : uri);
+  PL_INFO ("");
+  PL_INFO ("Check that it shows the code: %s", user);
+  PL_INFO ("");
+  PL_INFO ("Waiting for you to allow access (expires in %d minutes) ...",
+           (expires->valueint + 59) / 60);
 
-  PLTime exp = time (NULL) + expires->valueint;
-  if (plCfgSetLogin (config, access->valuestring, refresh->valuestring, exp)
-      < 0)
+  result = plAwaitDeviceCode (config, ini, code, wait, deadline);
+  if (result == PL_EOK)
     {
-      PL_ERROR ("Failed to set login information");
-      result = PL_EARG;
-      goto cleanup_json;
+      PL_INFO ("");
+      PL_INFO ("Login successful!");
     }
-
-  if (plCfgSave (config, ini) < 0)
-    {
-      PL_ERROR ("Failed to save configuration");
-      result = PL_EARG;
-      goto cleanup_json;
-    }
-
-  result = PL_EOK;
-  PL_INFO ("Login successful!");
 
 cleanup_json:
   cJSON_Delete (json);
-cleanup_tokens:
-  free (tokens);
-cleanup_url:
-  free (url);
 
   return result;
 }

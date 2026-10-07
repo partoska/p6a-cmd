@@ -47,6 +47,7 @@
 #define REDIRECT_URL "https://app.partoska.com/callback/p6a"
 #define CLIENT_ID "b6ac7100-0000-4000-8000-000000000000"
 #define AUTHORIZE_URL "https://app.partoska.com/auth/v1/oauth/authorize"
+#define DEVICE_URL "https://app.partoska.com/auth/v1/oauth/device"
 #define TOKEN_URL "https://app.partoska.com/auth/v1/oauth/token"
 #define SCOPE "event media rest"
 
@@ -109,6 +110,7 @@ plCfgAuthDestroy (PLCfgOAuth *auth)
   free (auth->client);
   free (auth->redirect);
   free (auth->authorize);
+  free (auth->device);
   free (auth->token);
   free (auth->scope);
   free (auth);
@@ -126,10 +128,11 @@ plCfgAuthInit (void)
   auth->client = plStrDup (CLIENT_ID);
   auth->redirect = plStrDup (REDIRECT_URL);
   auth->authorize = plStrDup (AUTHORIZE_URL);
+  auth->device = plStrDup (DEVICE_URL);
   auth->token = plStrDup (TOKEN_URL);
   auth->scope = plStrDup (SCOPE);
-  if (!auth->client || !auth->redirect || !auth->authorize || !auth->token
-      || !auth->scope)
+  if (!auth->client || !auth->redirect || !auth->authorize || !auth->device
+      || !auth->token || !auth->scope)
     {
       plCfgAuthDestroy (auth);
       return NULL;
@@ -262,6 +265,13 @@ plCfgLoad (PLCfg *cfg, const PLChar *file)
       cfg->oauth->token = plStrDup (value);
     }
 
+  value = plIniGet (ini, "OAuth", "Device");
+  if (value)
+    {
+      free (cfg->oauth->device);
+      cfg->oauth->device = plStrDup (value);
+    }
+
   value = plIniGet (ini, "OAuth", "Scope");
   if (value)
     {
@@ -313,7 +323,7 @@ plCfgSave (const PLCfg *cfg, const PLChar *file)
       return PL_EMEM;
     }
 
-  PLInt result = plIniSet (ini, "Global", "Version", cfg->glob->version);
+  PLInt result = plIniSet (ini, "Global", "Version", PL_VERSION_STRING);
   if (result != PL_EOK)
     {
       plIniDestroy (ini);
@@ -342,6 +352,13 @@ plCfgSave (const PLCfg *cfg, const PLChar *file)
     }
 
   result = plIniSet (ini, "OAuth", "Authorize", cfg->oauth->authorize);
+  if (result != PL_EOK)
+    {
+      plIniDestroy (ini);
+      return result;
+    }
+
+  result = plIniSet (ini, "OAuth", "Device", cfg->oauth->device);
   if (result != PL_EOK)
     {
       plIniDestroy (ini);
@@ -474,8 +491,8 @@ plCfgCheck (const PLCfg *cfg)
     }
 
   const PLCfgOAuth *auth = cfg->oauth;
-  if (!auth->client || !auth->redirect || !auth->authorize || !auth->token
-      || !auth->scope)
+  if (!auth->client || !auth->redirect || !auth->authorize || !auth->device
+      || !auth->token || !auth->scope)
     {
       return PL_FALSE;
     }

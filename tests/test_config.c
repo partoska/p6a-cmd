@@ -80,6 +80,19 @@ rmFile (const PLChar *path)
   unlink (path);
 }
 
+/* Write text to a fresh temp file and return its path in buf. */
+static void
+writeTmpfile (PLChar *buf, PLSize size, const PLChar *text)
+{
+  makeTmpfile (buf, size);
+  FILE *f = fopen (buf, "wb");
+  if (f)
+    {
+      fputs (text, f);
+      fclose (f);
+    }
+}
+
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - Init / Destroy / Check
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
@@ -107,6 +120,7 @@ testInitDefaultsPopulated (void)
   PL_ASSERT (cfg->oauth->client != NULL);
   PL_ASSERT (cfg->oauth->redirect != NULL);
   PL_ASSERT (cfg->oauth->authorize != NULL);
+  PL_ASSERT (cfg->oauth->device != NULL);
   PL_ASSERT (cfg->oauth->token != NULL);
   PL_ASSERT (cfg->oauth->scope != NULL);
 
@@ -348,6 +362,53 @@ testRoundtripUnsetAfterSet (void)
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Tests - Device endpoint
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+static void
+testDeviceRoundtrip (void)
+{
+  // An explicit Device endpoint survives a save/load cycle.
+  PLChar path[256];
+  makeTmpfile (path, sizeof (path));
+
+  PLCfg *cfg = plCfgInit ();
+  free (cfg->oauth->device);
+  cfg->oauth->device = strdup ("https://example.com/custom/device");
+  PL_ASSERT_EQ (plCfgSave (cfg, path), PL_EOK);
+  plCfgDestroy (cfg);
+
+  PLCfg *loaded = plCfgInit ();
+  PL_ASSERT_EQ (plCfgLoad (loaded, path), PL_EOK);
+  PL_ASSERT_STR_EQ (loaded->oauth->device,
+                    "https://example.com/custom/device");
+
+  plCfgDestroy (loaded);
+  rmFile (path);
+}
+
+static void
+testDeviceDefaultWhenMissing (void)
+{
+  // A config written before the device flow has no Device key and gets the
+  // built-in default.
+  PLChar path[256];
+  writeTmpfile (path, sizeof (path),
+                "[OAuth]\n"
+                "Token=https://example.com/auth/v1/oauth/token\n");
+
+  PLCfg *def = plCfgInit ();
+  PLCfg *cfg = plCfgInit ();
+  PL_ASSERT_EQ (plCfgLoad (cfg, path), PL_EOK);
+  PL_ASSERT_STR_EQ (cfg->oauth->device, def->oauth->device);
+  PL_ASSERT_EQ (plCfgCheck (cfg), PL_TRUE);
+
+  plCfgDestroy (cfg);
+  plCfgDestroy (def);
+  rmFile (path);
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Main
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
@@ -379,6 +440,10 @@ main (void)
   PL_RUN (testRoundtripPreservesGlob);
   PL_RUN (testRoundtripNoLogin);
   PL_RUN (testRoundtripUnsetAfterSet);
+
+  PL_SUITE ("config - device endpoint");
+  PL_RUN (testDeviceRoundtrip);
+  PL_RUN (testDeviceDefaultWhenMissing);
 
   PL_SUMMARY ();
 }
