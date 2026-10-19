@@ -18,7 +18,7 @@ Manage and sync your event photos from [Partoska](https://www.partoska.com) — 
 - Upload photos directly to an event from the command line.
 - Get or download invite links and QR codes for sharing events.
 - Works on macOS, Linux, and Windows.
-- [Agent skills available](https://github.com/partoska/p6a-skills) for use with AI assistants.
+- [Agent skill](#agent-skill) included for use with AI assistants.
 
 ## Quick Start
 
@@ -659,6 +659,27 @@ p6a login
 p6a sync -t ~/photos
 ```
 
+## Agent Skill
+
+The `p6a` agent skill teaches AI assistants (Claude, Codex, and other skill-aware agents) how to use this tool. Describe what you want and the assistant runs or writes the right `p6a` commands for you:
+
+- `/p6a sync my photos to ~/backup` - get the exact command to run
+- `/p6a create an event for Saturday's BBQ and give me the QR code` - create the event and download its QR
+- `/p6a moderate the pending photos at the company party` - review and approve uploads for you
+- `/p6a script to back up all my favorite events nightly` - get a shell script or cron job
+- `/p6a make a collage from the best photos of the BBQ` - download full-quality originals and design around them
+
+Install it with the [Skills CLI](https://www.npmjs.com/package/skills):
+
+```bash
+# Install the skill for all your projects.
+npx skills add partoska/p6a-cmd@p6a -g
+```
+
+The skill lives in [`skills/p6a`](skills/p6a) and is also attached to every [release](https://github.com/partoska/p6a-cmd/releases) as `p6a_<version>_skill.zip` for manual installation.
+
+If you want to use Partoska from an assistant without the command-line tool, see the [Partoska skill](https://github.com/partoska/p6a-skills), which works through the Partoska MCP server.
+
 ## Configuration
 
 The tool stores configuration in `~/.p6a/p6a.ini` by default. You can customize this location:
@@ -843,5 +864,4 @@ Developed by [Partoska Laboratory](https://lab.partoska.com) team.
 
 - **Partoska Website:** [https://www.partoska.com](https://www.partoska.com)
 - **Project Website:** [https://www.partoska.com/p6a](https://www.partoska.com/p6a)
-- **Agent Skills:** [https://github.com/partoska/p6a-skills](https://github.com/partoska/p6a-skills)
 - **API Documentation:** [https://api.partoska.com/rest/v1/swagger.yml](https://api.partoska.com/rest/v1/swagger.yml)
