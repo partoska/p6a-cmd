@@ -569,6 +569,10 @@ testApprove (void)
                      "-m",  "media-uuid" };
   PLChar *argvLong[] = { "p6a",    "approve", "--event", "event-uuid",
                          "--media", "media-uuid" };
+  PLChar *argvRevoke[]
+      = { "p6a", "approve", "-e", "event-uuid", "-m", "media-uuid", "-r" };
+  PLChar *argvRevokeLong[] = { "p6a", "approve",    "-e",      "event-uuid",
+                               "-m",  "media-uuid", "--revoke" };
   PLChar *argvNoEvent[] = { "p6a", "approve", "-m", "media-uuid" };
   PLChar *argvNoMedia[] = { "p6a", "approve", "-e", "event-uuid" };
 
@@ -576,6 +580,15 @@ testApprove (void)
   PL_ASSERT_EQ (args.cmd, PL_CAPPROVE);
   PL_ASSERT_STR_EQ (args.c.approve.event, "event-uuid");
   PL_ASSERT_STR_EQ (args.c.approve.media, "media-uuid");
+  PL_ASSERT_EQ (args.flags & PL_FREVOKE, (PLDword)0);
+
+  // -r / --revoke revokes approval instead.
+  PL_ASSERT_EQ (parse (&args, 7, argvRevoke), PL_EOK);
+  PL_ASSERT_EQ (args.cmd, PL_CAPPROVE);
+  PL_ASSERT (args.flags & PL_FREVOKE);
+
+  PL_ASSERT_EQ (parse (&args, 7, argvRevokeLong), PL_EOK);
+  PL_ASSERT (args.flags & PL_FREVOKE);
 
   PL_ASSERT_EQ (parse (&args, 6, argvLong), PL_EOK);
   PL_ASSERT_STR_EQ (args.c.approve.event, "event-uuid");

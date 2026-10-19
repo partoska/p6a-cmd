@@ -212,16 +212,19 @@ PLInt plApiMediaUpdate (const PLChar *base, const PLChar *token,
                         const PLChar *event, const PLChar *media, PLInt fav);
 
 /**
- * Approves a media item in a moderated event via POST.
+ * Approves a media item in a moderated event via POST, or puts it back on
+ * hold via DELETE. Revoking is refused on non-moderated events.
  *
- * @param base  API base URL.
- * @param token OAuth bearer token.
- * @param event UUID of the event.
- * @param media UUID of the media item.
+ * @param base     API base URL.
+ * @param token    OAuth bearer token.
+ * @param event    UUID of the event.
+ * @param media    UUID of the media item.
+ * @param approved PL_TRUE to approve, PL_FALSE to revoke approval.
  * @return PL_EOK on success, or a PL_E* error code on failure.
  */
 PLInt plApiMediaApprove (const PLChar *base, const PLChar *token,
-                         const PLChar *event, const PLChar *media);
+                         const PLChar *event, const PLChar *media,
+                         PLBool approved);
 
 /**
  * Starts a resumable chunked media upload session.

@@ -26,7 +26,10 @@
 #
 
 name: Build
-on: [push]
+on:
+  push:
+    branches:
+      - "**"
 permissions:
   contents: read
 jobs:

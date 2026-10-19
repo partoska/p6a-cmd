@@ -2,7 +2,8 @@
 
 Manage and sync your event photos from [Partoska](https://www.partoska.com) — right from your terminal.
 
-[![Version](https://img.shields.io/badge/version-1.12.0-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v1.12.0) [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt)
+[![Version](https://img.shields.io/badge/version-1.13.0-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v1.13.0) [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt) [![Build](https://github.com/partoska/p6a-cmd/actions/workflows/build.yml/badge.svg)](https://github.com/partoska/p6a-cmd/actions/workflows/build.yml)
+[![npm](https://img.shields.io/npm/v/@partoska/p6a.svg)](https://www.npmjs.com/package/@partoska/p6a)
 
 ## What is this?
 
@@ -92,24 +93,24 @@ my-photos/
 
 ## Commands
 
-| Command    | Description                        |
-| ---------- | ---------------------------------- |
-| `login`    | Authenticate with Partoska         |
-| `logout`   | Remove saved credentials           |
-| `sync`     | Download and organize event photos |
-| `list`     | List events                        |
-| `create`   | Create a new event                 |
-| `update`   | Update an existing event           |
-| `edit`     | Update a media item                |
-| `approve`  | Approve a media item               |
-| `qr`       | Download QR code for an event      |
-| `card`     | Download share card for an event   |
-| `link`     | Get invite link for an event       |
-| `media`    | List media items for an event      |
-| `download` | Download media for an event        |
-| `upload`   | Upload a photo to an event         |
-| `help`     | Show usage information             |
-| `version`  | Print version information          |
+| Command    | Description                                |
+| ---------- | ------------------------------------------ |
+| `login`    | Authenticate with Partoska                 |
+| `logout`   | Remove saved credentials                   |
+| `sync`     | Download and organize event photos         |
+| `list`     | List events                                |
+| `create`   | Create a new event                         |
+| `update`   | Update an existing event                   |
+| `edit`     | Update a media item                        |
+| `approve`  | Approve or revoke approval of a media item |
+| `qr`       | Download QR code for an event              |
+| `card`     | Download share card for an event           |
+| `link`     | Get invite link for an event               |
+| `media`    | List media items for an event              |
+| `download` | Download media for an event                |
+| `upload`   | Upload a photo to an event                 |
+| `help`     | Show usage information                     |
+| `version`  | Print version information                  |
 
 ### `login` - Authenticate with Partoska
 
@@ -336,16 +337,17 @@ p6a media -e "$EID" -o -1 | xargs -I{} p6a edit -e "$EID" -m {} -f
 
 ### `approve` - Approve a Media Item
 
-Approve a media item in a moderated event, making it visible to all guests. Has no effect on non-moderated events. Requires moderator permission.
+Approve a media item in a moderated event, making it visible to all guests. Has no effect on non-moderated events. With `-r`, revoke the approval instead: the item goes back on hold, hidden from everyone except its author and moderators; revoking fails on non-moderated events, whose uploads are never reviewed. Requires moderator permission.
 
 ```bash
-p6a approve -e <event-id> -m <media-id>
+p6a approve -e <event-id> -m <media-id> [-r]
 ```
 
 **Options:**
 
 - `-e, --event <id>` - Event ID (required).
 - `-m, --media <id>` - Media ID (required).
+- `-r, --revoke` - Revoke approval, putting the item back on hold.
 - `-D, --dir <path>` - Custom config directory (default: `~/.p6a`).
 
 **Examples:**
@@ -359,6 +361,9 @@ EID=12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7
 p6a media -e "$EID" -F json | \
   jq -r '.[] | select(.approved == false) | .id' | \
   xargs -I{} p6a approve -e "$EID" -m {}
+
+# Revoke approval, putting a media item back on hold.
+p6a approve -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -m 7a8b9c0d-f00d-4a3b-8c5d-e6f700010203 -r
 ```
 
 ### `qr` - Download Event QR Code

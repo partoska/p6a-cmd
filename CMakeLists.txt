@@ -26,7 +26,7 @@
 #
 
 cmake_minimum_required(VERSION 3.13)
-project(p6a VERSION 1.12.0)
+project(p6a VERSION 1.13.0)
 
 # P6A build.
 add_subdirectory(src)
@@ -77,6 +77,8 @@ elseif(APPLE)
   set(CPACK_COMMAND_PKGBUILD "${CMAKE_CURRENT_SOURCE_DIR}/cpack/pkgbuild_wrapper.sh")
   set(CPACK_RESOURCE_FILE_WELCOME "${CMAKE_CURRENT_SOURCE_DIR}/assets/installer/WELCOME.macos.txt")
   set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/assets/installer/README.macos.txt")
+  # Installer background image, referenced by cpack/CPack.distribution.dist.in.
+  set(CPACK_PRODUCTBUILD_RESOURCES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets/installer/macos")
   set(CPACK_PRODUCTBUILD_IDENTIFIER "com.partoska.p6a")
   set(CPACK_PRODUCTBUILD_DOMAINS TRUE)
   set(CPACK_PRODUCTBUILD_DOMAINS_ANYWHERE TRUE)
@@ -98,6 +100,19 @@ else()
   set(CPACK_DEBIAN_PACKAGE_SECTION "net")
   set(CPACK_RPM_PACKAGE_REQUIRES "libcurl")
   set(CPACK_RPM_PACKAGE_LICENSE "MIT")
+
+  # Application icons for the freedesktop.org hicolor theme.
+  set(P6A_ICON_SIZES 16x16 24x24 32x32 48x48 64x64 128x128 256x256 512x512 scalable)
+  install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/assets/icons/hicolor" DESTINATION share/icons)
+  # The icon theme directories belong to the system, not to this package.
+  set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION
+    /usr/share/icons
+    /usr/share/icons/hicolor)
+  foreach(size ${P6A_ICON_SIZES})
+    list(APPEND CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION
+      /usr/share/icons/hicolor/${size}
+      /usr/share/icons/hicolor/${size}/apps)
+  endforeach()
 endif()
 
 include(CPack)

@@ -85,7 +85,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
       - name: Register QEMU handlers
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
         with:
           platforms: arm
       - name: Build in Raspberry Pi OS (ARMv6)
@@ -132,7 +132,7 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           msystem: UCRT64
-          cache: true
+          cache: false
           update: false
           install: >-
             mingw-w64-ucrt-x86_64-gcc
@@ -178,7 +178,7 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           msystem: CLANGARM64
-          cache: true
+          cache: false
           update: true
           install: >-
             mingw-w64-clang-aarch64-clang
@@ -274,6 +274,18 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Upload packages to release
         run: gh release upload ${{ github.ref_name }} artifacts/packages_*/* --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Package skill
+        run: |
+          VERSION=${{ github.ref_name }}
+          VERSION=${VERSION#v}
+          cd skills && zip -rqX ../p6a_${VERSION}_skill.zip p6a -x '*.DS_Store'
+      - name: Upload skill to release
+        run: |
+          VERSION=${{ github.ref_name }}
+          VERSION=${VERSION#v}
+          gh release upload ${{ github.ref_name }} p6a_${VERSION}_skill.zip --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   npm-publish:

@@ -1072,7 +1072,8 @@ plDoCard (const PLChar *dir, const PLChar *event, const PLChar *output,
 }
 
 static PLInt
-plDoApprove (const PLChar *dir, const PLChar *event, const PLChar *media)
+plDoApprove (const PLChar *dir, const PLChar *event, const PLChar *media,
+             PLBool approved)
 {
   if (!event || !media)
     {
@@ -1142,7 +1143,7 @@ plDoApprove (const PLChar *dir, const PLChar *event, const PLChar *media)
       return PL_ENET;
     }
 
-  result = plApprove (config->glob->endpoint, bearer, event, media);
+  result = plApprove (config->glob->endpoint, bearer, event, media, approved);
 
   free (bearer);
   curl_global_cleanup ();
@@ -1253,7 +1254,7 @@ plDoHelp (void)
   PL_INFO ("  create              Create a new event");
   PL_INFO ("  update              Update an existing event");
   PL_INFO ("  edit                Update a media item");
-  PL_INFO ("  approve             Approve a media item in a moderated event");
+  PL_INFO ("  approve             Approve or revoke approval of a media item");
   PL_INFO ("  qr                  Download QR code for an event");
   PL_INFO ("  card                Download share card (PDF/JPG) for an event");
   PL_INFO ("  link                Get invite link for an event");
@@ -1321,6 +1322,7 @@ plDoHelp (void)
       "  -D, --dir <path>    Specify working directory (default: ~/.p6a)");
   PL_INFO ("  -e, --event <id>    Event ID (required)");
   PL_INFO ("  -m, --media <id>    Media ID (required)");
+  PL_INFO ("  -r, --revoke        Revoke approval (put media back on hold)");
   PL_INFO ("");
   PL_INFO ("QR code options:");
   PL_INFO (
@@ -1418,6 +1420,8 @@ plDoHelp (void)
            "-m 7a8b9c0d-f00d-4a3b-8c5d-e6f700010203 -F");
   PL_INFO ("  p6a approve -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 "
            "-m 7a8b9c0d-f00d-4a3b-8c5d-e6f700010203");
+  PL_INFO ("  p6a approve -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 "
+           "-m 7a8b9c0d-f00d-4a3b-8c5d-e6f700010203 -r");
   PL_INFO ("  p6a logout");
   PL_INFO ("");
 
@@ -1559,7 +1563,8 @@ main (PLInt argc, PLChar **argv)
       }
     case PL_CAPPROVE:
       {
-        if (plDoApprove (args.dir, args.c.approve.event, args.c.approve.media)
+        if (plDoApprove (args.dir, args.c.approve.event, args.c.approve.media,
+                         (args.flags & PL_FREVOKE) == 0)
             != PL_EOK)
           {
             return EXIT_FAILURE;

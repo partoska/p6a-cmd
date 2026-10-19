@@ -715,10 +715,11 @@ plArgParseApprove (PLArg *args, PLInt argc, PLChar **argv)
   static struct option opts[] = { { "dir", required_argument, NULL, 'D' },
                                   { "event", required_argument, NULL, 'e' },
                                   { "media", required_argument, NULL, 'm' },
+                                  { "revoke", no_argument, NULL, 'r' },
                                   { NULL, 0, NULL, 0 } };
   PLInt c;
   opterr = 0;
-  while ((c = getopt_long (argc, argv, "D:e:m:", opts, NULL)) != -1)
+  while ((c = getopt_long (argc, argv, "D:e:m:r", opts, NULL)) != -1)
     {
       switch (c)
         {
@@ -735,6 +736,11 @@ plArgParseApprove (PLArg *args, PLInt argc, PLChar **argv)
         case 'm':
           PL_DSLOW ("Arg: --media=%s", optarg);
           args->c.approve.media = optarg;
+          break;
+
+        case 'r':
+          PL_DSLOW ("Arg: --revoke");
+          args->flags |= PL_FREVOKE;
           break;
 
         default:

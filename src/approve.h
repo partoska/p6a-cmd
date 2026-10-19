@@ -40,17 +40,21 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 /**
- * Approves a media item in a moderated event via POST /event/{id}/media/{media}/approve.
+ * Approves a media item in a moderated event via
+ * POST /event/{id}/media/{media}/approve, or puts it back on hold via
+ * DELETE on the same path.
  *
- * Has no effect on non-moderated events. Requires moderator permission.
+ * Approving has no effect on non-moderated events; revoking is refused
+ * there. Requires moderator permission.
  *
- * @param base   API base URL.
- * @param bearer OAuth bearer token.
- * @param event  UUID of the event.
- * @param media  UUID of the media item.
+ * @param base     API base URL.
+ * @param bearer   OAuth bearer token.
+ * @param event    UUID of the event.
+ * @param media    UUID of the media item.
+ * @param approved PL_TRUE to approve, PL_FALSE to revoke approval.
  * @return PL_EOK on success, or a PL_E* error code on failure.
  */
-PLInt plApprove (const PLChar *base, const PLChar *bearer,
-                 const PLChar *event, const PLChar *media);
+PLInt plApprove (const PLChar *base, const PLChar *bearer, const PLChar *event,
+                 const PLChar *media, PLBool approved);
 
 #endif

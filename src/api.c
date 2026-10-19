@@ -1363,7 +1363,7 @@ cleanup:
 
 PLInt
 plApiMediaApprove (const PLChar *base, const PLChar *token,
-                   const PLChar *event, const PLChar *media)
+                   const PLChar *event, const PLChar *media, PLBool approved)
 {
   if (!base || !token || !event || !media)
     {
@@ -1401,8 +1401,15 @@ plApiMediaApprove (const PLChar *base, const PLChar *token,
 
   curl_easy_setopt (curl, CURLOPT_URL, url);
   curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
-  curl_easy_setopt (curl, CURLOPT_POST, 1L);
-  curl_easy_setopt (curl, CURLOPT_POSTFIELDSIZE, 0L);
+  if (approved)
+    {
+      curl_easy_setopt (curl, CURLOPT_POST, 1L);
+      curl_easy_setopt (curl, CURLOPT_POSTFIELDSIZE, 0L);
+    }
+  else
+    {
+      curl_easy_setopt (curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+    }
   curl_easy_setopt (curl, CURLOPT_WRITEFUNCTION, plDiscardCallback);
 
   PL_DEBUG ("--- Api Request ---");
@@ -1421,6 +1428,12 @@ plApiMediaApprove (const PLChar *base, const PLChar *token,
   CURLlong httpcode;
   curl_easy_getinfo (curl, CURLINFO_RESPONSE_CODE, &httpcode);
   PL_DEBUG ("--- Api Response (HTTP %ld) ---", httpcode);
+  if (!approved && httpcode == 422)
+    {
+      PL_ERROR ("Event is not moderated, so approval cannot be revoked");
+      rc = PL_ENET;
+      goto cleanup_media_approve;
+    }
   if (httpcode != 200)
     {
       PL_ERROR ("Request failed with HTTP %ld", httpcode);

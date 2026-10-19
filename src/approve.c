@@ -41,7 +41,7 @@
 
 PLInt
 plApprove (const PLChar *base, const PLChar *bearer, const PLChar *event,
-           const PLChar *media)
+           const PLChar *media, PLBool approved)
 {
   if (!base || !bearer || !event || !media)
     {
@@ -49,10 +49,11 @@ plApprove (const PLChar *base, const PLChar *bearer, const PLChar *event,
       return PL_EARG;
     }
 
-  PLInt result = plApiMediaApprove (base, bearer, event, media);
+  PLInt result = plApiMediaApprove (base, bearer, event, media, approved);
   if (result != PL_EOK)
     {
-      PL_ERROR ("Failed to approve media");
+      PL_ERROR ("Failed to %s",
+                approved ? "approve media" : "revoke media approval");
       return result;
     }
 

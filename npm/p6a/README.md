@@ -84,24 +84,24 @@ renamed automatically if an event's name changes.
 
 ## Commands
 
-| Command    | Description                        |
-| ---------- | ---------------------------------- |
-| `login`    | Authenticate with Partoska         |
-| `logout`   | Remove saved credentials           |
-| `sync`     | Download and organize event photos |
-| `list`     | List events                        |
-| `create`   | Create a new event                 |
-| `update`   | Update an existing event           |
-| `edit`     | Update a media item                |
-| `approve`  | Approve a media item               |
-| `qr`       | Download QR code for an event      |
-| `card`     | Download share card for an event   |
-| `link`     | Get invite link for an event       |
-| `media`    | List media items for an event      |
-| `download` | Download media for an event        |
-| `upload`   | Upload a photo to an event         |
-| `help`     | Show usage information             |
-| `version`  | Print version information          |
+| Command    | Description                                |
+| ---------- | ------------------------------------------ |
+| `login`    | Authenticate with Partoska                 |
+| `logout`   | Remove saved credentials                   |
+| `sync`     | Download and organize event photos         |
+| `list`     | List events                                |
+| `create`   | Create a new event                         |
+| `update`   | Update an existing event                   |
+| `edit`     | Update a media item                        |
+| `approve`  | Approve or revoke approval of a media item |
+| `qr`       | Download QR code for an event              |
+| `card`     | Download share card for an event           |
+| `link`     | Get invite link for an event               |
+| `media`    | List media items for an event              |
+| `download` | Download media for an event                |
+| `upload`   | Upload a photo to an event                 |
+| `help`     | Show usage information                     |
+| `version`  | Print version information                  |
 
 Run `p6a help` or `p6a <command> --help` at any time for full usage.
 
@@ -178,6 +178,9 @@ p6a edit -e <event-id> -m <media-id> -F
 
 # Approve a pending item in a moderated event (requires moderator permission).
 p6a approve -e <event-id> -m <media-id>
+
+# Revoke approval, putting an item back on hold (moderated events only).
+p6a approve -e <event-id> -m <media-id> -r
 ```
 
 ### `download` — Download media
