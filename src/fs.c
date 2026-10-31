@@ -199,11 +199,29 @@ plFileClose (PLFile *file)
   fclose (file);
 }
 
+#ifdef _WIN32
+static PLDword plConsolePage;
+
+static void
+plConsoleRestore (void)
+{
+  SetConsoleOutputCP (plConsolePage);
+}
+#endif
+
 void
 plConsoleInit (void)
 {
 #ifdef _WIN32
-  SetConsoleOutputCP (CP_UTF8);
+  // A console shows the UTF-8 it is given only in its UTF-8 code page; the
+  // one it had comes back at exit, so the shell keeps its own. Without a
+  // console the page reads as 0 and nothing changes.
+  PLDword page = GetConsoleOutputCP ();
+  if (page != 0 && page != CP_UTF8 && SetConsoleOutputCP (CP_UTF8))
+    {
+      plConsolePage = page;
+      atexit (plConsoleRestore);
+    }
 #endif
 }
 

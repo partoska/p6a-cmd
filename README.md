@@ -2,7 +2,7 @@
 
 Manage and sync your event photos from [Partoska](https://www.partoska.com) — right from your terminal.
 
-[![Version](https://img.shields.io/badge/version-1.13.0-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v1.13.0) [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt) [![Build](https://github.com/partoska/p6a-cmd/actions/workflows/build.yml/badge.svg)](https://github.com/partoska/p6a-cmd/actions/workflows/build.yml)
+[![Version](https://img.shields.io/badge/version-1.14.0-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v1.14.0) [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt) [![Build](https://github.com/partoska/p6a-cmd/actions/workflows/build.yml/badge.svg)](https://github.com/partoska/p6a-cmd/actions/workflows/build.yml)
 [![npm](https://img.shields.io/npm/v/@partoska/p6a.svg)](https://www.npmjs.com/package/@partoska/p6a)
 
 ## What is this?
@@ -50,7 +50,7 @@ npx @partoska/p6a login
 npx @partoska/p6a sync -t ~/my-photos
 ```
 
-**From source** (requires CMake 3.13+, GCC or Clang, and libcurl):
+**From source** (requires CMake 3.20+, GCC or Clang, and libcurl):
 
 ```bash
 # Clone the repository.
@@ -711,7 +711,7 @@ You can view your config file at `~/.p6a/p6a.ini`.
 ### Requirements
 
 - **Build dependencies:**
-  - CMake 3.13 or later
+  - CMake 3.20 or later
   - C compiler (GCC or Clang)
   - libcurl
 - **Runtime dependencies:**

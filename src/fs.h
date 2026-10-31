@@ -49,7 +49,7 @@ typedef FILE PLFile;
 
 /**
  * Performs platform-specific console initialization (e.g., UTF-8 mode on
- * Windows).
+ * Windows, with the previous code page restored at exit).
  */
 void plConsoleInit (void);
 

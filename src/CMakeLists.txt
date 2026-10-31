@@ -25,31 +25,6 @@
 # You can contact the author(s) via email at ask <at> partoska.com.
 #
 
-set(CMAKE_C_STANDARD 99)
-
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -D_XOPEN_SOURCE=700 -pedantic \
-    -Wall -Werror -Wextra -Werror=return-type -Werror=array-bounds \
-    -Wno-deprecated-declarations")
-set(CMAKE_C_FLAGS_DEBUG "-O0 -g3 -D_DEBUG=1")
-set(CMAKE_C_FLAGS_RELEASE "-Os -g0 -DNDEBUG")
-
-option(WITH_SANITIZERS "Use sanitizers")
-if(WITH_SANITIZERS)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer \
-        -fsanitize=undefined -fsanitize=address -fsanitize=float-cast-overflow \
-        -fsanitize-address-use-after-scope -fno-sanitize-recover")
-
-    # Integer sanitizer is only supported by Clang compiler.
-    if(CMAKE_C_COMPILER_ID MATCHES "Clang")
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=integer")
-    endif()
-endif()
-
-option(WITH_VERBOSE_DEBUG "Extra verbose mode in Debug build")
-if(WITH_VERBOSE_DEBUG)
-    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DDEBUG_SLOW=1")
-endif()
-
 # On Windows, link everything statically so the .exe is self-contained
 # (no DLL dependencies on libcurl, libgcc, etc.).
 if(WIN32)
@@ -99,4 +74,11 @@ else()
     target_link_libraries(p6a PRIVATE CURL::libcurl)
 endif()
 
-install(TARGETS p6a)
+# Icon and version information of p6a.exe.
+if(WIN32)
+    set(P6A_ICON "${PROJECT_SOURCE_DIR}/assets/installer/p6a.ico")
+    configure_file(p6a.rc.in "${CMAKE_CURRENT_BINARY_DIR}/p6a.rc" @ONLY)
+    target_sources(p6a PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/p6a.rc")
+endif()
+
+install(TARGETS p6a RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")

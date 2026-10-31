@@ -7,7 +7,7 @@ Thank you for your interest in contributing! Here's everything you need to get s
 ### Prerequisites
 
 - C99-capable compiler (GCC or Clang)
-- CMake 3.13+
+- CMake 3.20+
 - libcurl with development headers
 - Git
 

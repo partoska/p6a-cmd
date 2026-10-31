@@ -30,6 +30,11 @@
  * Includes
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+/* macOS declares mkdtemp() only with _DARWIN_C_SOURCE. */
+#ifdef __APPLE__
+#define _DARWIN_C_SOURCE
+#endif
+
 #include "config.h"
 #include "test_runner.h"
 #include "wdir.h"
@@ -45,6 +50,7 @@
 
 #ifdef _WIN32
 #include <direct.h>
+#include <io.h>
 
 static PLInt
 setenv (const PLChar *name, const PLChar *value, PLInt overwrite)
@@ -89,7 +95,26 @@ makeTmpdir (PLChar *buf, PLSize size)
       tmp = "/tmp";
     }
   snprintf (buf, size, "%s/p6a_test_XXXXXX", tmp);
+#ifdef _WIN32
+  _mktemp_s (buf, strlen (buf) + 1);
+  _mkdir (buf);
+#else
   mkdtemp (buf);
+#endif
+}
+
+/* Copy an environment variable into buf, as a later setenv() may free the
+ * string getenv() returned; returns NULL when the variable is unset. */
+static const PLChar *
+saveEnv (const PLChar *name, PLChar *buf, PLSize size)
+{
+  const PLChar *value = getenv (name);
+  if (value == NULL)
+    {
+      return NULL;
+    }
+  snprintf (buf, size, "%s", value);
+  return buf;
 }
 
 /* Remove a directory (must be empty). */
@@ -164,7 +189,8 @@ testP6aHomeExisting (void)
   PLChar tmpdir[256];
   makeTmpdir (tmpdir, sizeof (tmpdir));
 
-  const PLChar *prevHome = getenv ("P6A_HOME");
+  PLChar prevBuf[1024];
+  const PLChar *prevHome = saveEnv ("P6A_HOME", prevBuf, sizeof (prevBuf));
   setenv ("P6A_HOME", tmpdir, 1);
 
   PLChar workdir[256] = "";
@@ -190,7 +216,8 @@ static void
 testP6aHomeNonexistent (void)
 {
   // P6A_HOME pointing at a non-existent directory must fail.
-  const PLChar *prevHome = getenv ("P6A_HOME");
+  PLChar prevBuf[1024];
+  const PLChar *prevHome = saveEnv ("P6A_HOME", prevBuf, sizeof (prevBuf));
   setenv ("P6A_HOME", "/tmp/p6a_no_such_dir_abc123", 1);
 
   PLChar workdir[256] = "";
@@ -223,8 +250,11 @@ testHomeCreatesP6aSubdir (void)
   PLChar expWd[512];
   snprintf (expWd, sizeof (expWd), "%s/.p6a", tmpdir);
 
-  const PLChar *prevP6a = getenv ("P6A_HOME");
-  const PLChar *prevHome = getenv ("HOME");
+  PLChar prevP6aBuf[1024];
+  PLChar prevHomeBuf[1024];
+  const PLChar *prevP6a
+      = saveEnv ("P6A_HOME", prevP6aBuf, sizeof (prevP6aBuf));
+  const PLChar *prevHome = saveEnv ("HOME", prevHomeBuf, sizeof (prevHomeBuf));
 
   unsetenv ("P6A_HOME");
   setenv ("HOME", tmpdir, 1);
@@ -267,8 +297,11 @@ testHomeReusesExistingP6aSubdir (void)
   // Pre-create the .p6a subdir.
   mkdir (p6aDir, 0700);
 
-  const PLChar *prevP6a = getenv ("P6A_HOME");
-  const PLChar *prevHome = getenv ("HOME");
+  PLChar prevP6aBuf[1024];
+  PLChar prevHomeBuf[1024];
+  const PLChar *prevP6a
+      = saveEnv ("P6A_HOME", prevP6aBuf, sizeof (prevP6aBuf));
+  const PLChar *prevHome = saveEnv ("HOME", prevHomeBuf, sizeof (prevHomeBuf));
 
   unsetenv ("P6A_HOME");
   setenv ("HOME", tmpdir, 1);

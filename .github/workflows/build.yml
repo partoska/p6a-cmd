@@ -30,14 +30,19 @@ on:
   push:
     branches:
       - "**"
+  pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   build-linux-amd64:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y cmake libcurl4-openssl-dev
       - name: Configure CMake
@@ -47,15 +52,24 @@ jobs:
       - name: Run tests
         run: ctest --test-dir build --output-on-failure
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: p6a_linux_amd64
           path: build/src/p6a
+  build-make:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
+      - name: Build and test with make
+        run: make test && make
   build-linux-arm64:
     runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y cmake libcurl4-openssl-dev
       - name: Configure CMake
@@ -65,37 +79,97 @@ jobs:
       - name: Run tests
         run: ctest --test-dir build --output-on-failure
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: p6a_linux_arm64
+          path: build/src/p6a
+  build-linux-armhf:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Register QEMU handlers
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm
+      - name: Build and test in Raspberry Pi OS (ARMv6)
+        run: |
+          docker run --rm --platform linux/arm/v6 \
+            -v "$PWD":/src -w /src \
+            --entrypoint /bin/bash \
+            balenalib/rpi-raspbian:bookworm -eu -o pipefail -c '
+              apt-get update -qq
+              DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+                build-essential cmake libcurl4-openssl-dev
+              cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DWITH_SANITIZERS=OFF -DWITH_VERBOSE_DEBUG=ON -DWITH_TESTS=ON -DCMAKE_VERBOSE_MAKEFILE=ON
+              cmake --build build --parallel "$(nproc)"
+              ctest --test-dir build --output-on-failure
+              chown -R '"$(id -u):$(id -g)"' build
+            '
+      - name: Verify ARMv6 output
+        run: |
+          readelf -A build/src/p6a | grep -E "Tag_CPU_arch:|Tag_FP_arch:"
+          readelf -A build/src/p6a | grep -q "Tag_CPU_arch: v6" || {
+            echo "::error::binary is not ARMv6, it will not run on a Pi Zero / Zero W"
+            exit 1
+          }
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: p6a_linux_armhf
+          path: build/src/p6a
+  build-macos:
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Configure CMake
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DWITH_SANITIZERS=ON -DWITH_VERBOSE_DEBUG=ON -DWITH_TESTS=ON -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+      - name: Build
+        run: cmake --build build --parallel 1
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: p6a_darwin_universal
           path: build/src/p6a
   build-windows-amd64:
     runs-on: windows-2025
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Install dependencies
         uses: msys2/setup-msys2@v2
         with:
           msystem: UCRT64
-          cache: true
+          cache: false
           update: false
           install: >-
             mingw-w64-ucrt-x86_64-gcc
             mingw-w64-ucrt-x86_64-cmake
             mingw-w64-ucrt-x86_64-curl
             mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-nsis
+            mingw-w64-ucrt-x86_64-pkgconf
       - name: Configure CMake
         shell: msys2 {0}
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DWITH_SANITIZERS=OFF -DWITH_VERBOSE_DEBUG=ON -DWITH_TESTS=ON -DCMAKE_VERBOSE_MAKEFILE=ON -DCURL_USE_STATIC_LIBS=ON
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DWITH_SANITIZERS=OFF -DWITH_VERBOSE_DEBUG=ON -DWITH_TESTS=ON -DCMAKE_VERBOSE_MAKEFILE=ON -DCURL_USE_STATIC_LIBS=ON
       - name: Build
         shell: msys2 {0}
         run: cmake --build build --parallel 1
       - name: Run tests
         shell: msys2 {0}
         run: ctest --test-dir build --output-on-failure
+      # Catches installer problems before a release tag does.
+      - name: Package (ZIP, NSIS, WiX)
+        shell: msys2 {0}
+        run: |
+          export PATH="$(cygpath "$WIX")/bin:$PATH"
+          cpack --config build/CPackConfig.cmake -G "ZIP;NSIS;WIX"
+          ls -l dist
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: p6a_windows_amd64
           path: build/src/p6a.exe
@@ -103,12 +177,12 @@ jobs:
     runs-on: windows-11-arm
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Install dependencies
         uses: msys2/setup-msys2@v2
         with:
           msystem: CLANGARM64
-          cache: true
+          cache: false
           update: true
           install: >-
             mingw-w64-clang-aarch64-clang
@@ -126,25 +200,36 @@ jobs:
         shell: msys2 {0}
         run: ctest --test-dir build --output-on-failure
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: p6a_windows_arm64
           path: build/src/p6a.exe
-  build-macos:
-    runs-on: macos-14
+  build-npm:
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
-      - name: Install dependencies
-        run: brew install curl pkg-config
-      - name: Configure CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DWITH_SANITIZERS=ON -DWITH_VERBOSE_DEBUG=ON -DWITH_TESTS=ON -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"
-      - name: Build
-        run: cmake --build build --parallel 1
-      - name: Run tests
-        run: ctest --test-dir build --output-on-failure
-      - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/checkout@v7
+      - name: Setup Node
+        uses: actions/setup-node@v7
         with:
-          name: p6a_darwin_universal
-          path: build/src/p6a
+          node-version: 24
+          package-manager-cache: false
+      - name: Check npm launcher
+        run: node --check npm/p6a/bin/p6a.js
+      - name: Verify versions
+        run: |
+          set -euo pipefail
+          VERSION=$(sed -n 's/^project(p6a VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
+          HEADER_VERSION=$(for p in MAJOR MINOR PATCH; do sed -n "s/^#define PL_VERSION_${p} \([0-9]*\)$/\1/p" src/types.h; done | paste -sd. -)
+          MAKE_VERSION=$(sed -n 's/^VERSION = \([0-9.]*\)$/\1/p' Makefile)
+          if [ "$VERSION" != "$HEADER_VERSION" ] || [ "$VERSION" != "$MAKE_VERSION" ]; then
+            echo "::error::CMakeLists.txt (${VERSION}), types.h (${HEADER_VERSION}) and Makefile (${MAKE_VERSION}) disagree"
+            exit 1
+          fi
+          node .github/scripts/npm-version.js verify "$VERSION"
+      - name: Dry-run pack all npm packages
+        run: |
+          set -euo pipefail
+          for d in npm/*/; do
+            ( cd "$d" && npm pack --dry-run )
+          done

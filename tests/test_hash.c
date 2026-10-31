@@ -211,12 +211,12 @@ testBlockBoundary (void)
   PLByte b[PL_HASH_DIGEST_SIZE];
 
   // 63 bytes (one byte short of a full block).
-  const PLChar msg63[63]
+  const PLChar msg63[]
       = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
   sha256 (msg63, 63, a);
 
   // 64 bytes (exactly one full block).
-  const PLChar msg64[64]
+  const PLChar msg64[]
       = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
   sha256 (msg64, 64, b);
 
@@ -224,7 +224,7 @@ testBlockBoundary (void)
 
   // 65 bytes (one byte into the second block).
   PLByte c[PL_HASH_DIGEST_SIZE];
-  const PLChar msg65[65]
+  const PLChar msg65[]
       = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
   sha256 (msg65, 65, c);
   PL_ASSERT (memcmp (b, c, PL_HASH_DIGEST_SIZE) != 0);

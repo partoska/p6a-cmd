@@ -27,7 +27,7 @@
 
 # Project configuration.
 PROJECT = p6a
-VERSION = 1.13.0
+VERSION = 1.14.0
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
 
@@ -75,6 +75,7 @@ SRCS = $(SRCDIR)/hash.c \
        $(SRCDIR)/3rdparty/cJSON/cJSON.c
 
 OBJS = $(SRCS:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
+DEPS = $(OBJS:.o=.d)
 
 # Include directories.
 INCLUDES = -I$(SRCDIR) \
@@ -122,15 +123,16 @@ ifeq ($(SANITIZERS),1)
     LDFLAGS += $(SANITIZER_FLAGS)
 endif
 
-# Complete CFLAGS.
+# Complete CFLAGS; DEPFLAGS rebuild objects when a header changes.
 CFLAGS = $(CFLAGS_COMMON) $(CFLAGS_BUILD) $(INCLUDES)
+DEPFLAGS = -MMD -MP
 
 # On Windows (MSYS2/MinGW), link statically so the .exe is self-contained.
 ifeq ($(OS),Windows_NT)
     CFLAGS_COMMON += -DCURL_STATICLIB
     LDFLAGS += -static -static-libgcc
     LDFLAGS += $(shell pkg-config --libs --static libcurl 2>/dev/null || echo "-lcurl")
-    LDFLAGS += -lws2_32 -lcrypt32
+    LDFLAGS += -lws2_32 -lcrypt32 -lbcrypt
 else
     LDFLAGS += $(shell pkg-config --libs libcurl 2>/dev/null || echo "-lcurl")
 endif
@@ -141,7 +143,7 @@ TARGET = $(BINDIR_BUILD)/$(PROJECT)
 # Test configuration.
 TESTDIR = tests
 TESTBINDIR = $(BUILDDIR)/tests
-TEST_CFLAGS = $(CFLAGS_BUILD) -I$(SRCDIR) -I$(TESTDIR)
+TEST_CFLAGS = $(CFLAGS_COMMON) $(CFLAGS_BUILD) -I$(SRCDIR) -I$(TESTDIR)
 TEST_BINS = $(TESTBINDIR)/test_base64 \
             $(TESTBINDIR)/test_hash \
             $(TESTBINDIR)/test_arg \
@@ -151,7 +153,7 @@ TEST_BINS = $(TESTBINDIR)/test_base64 \
             $(TESTBINDIR)/test_config
 
 # Phony targets.
-.PHONY: all clean install uninstall help debug release tests test
+.PHONY: all clean install install-strip uninstall help debug release tests test
 
 # Default target.
 all: $(TARGET)
@@ -166,7 +168,7 @@ $(TARGET): $(OBJS) | $(BINDIR_BUILD)
 $(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR)
 	@mkdir -p $(dir $@)
 	@echo "Compiling $<..."
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 # Create build directories.
 $(OBJDIR):
@@ -275,3 +277,5 @@ help:
 	@echo "  make PREFIX=/usr install"
 	@echo "  make clean && make"
 	@echo ""
+
+-include $(DEPS)
