@@ -73,7 +73,8 @@ writeTmpfile (PLChar *buf, PLSize size, const PLChar *content)
     {
       return;
     }
-  write (fd, content, strlen (content));
+  PLSize len = strlen (content);
+  PL_ASSERT_EQ (write (fd, content, len), (PLSSize)len);
   close (fd);
 #endif
 }

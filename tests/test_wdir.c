@@ -96,10 +96,9 @@ makeTmpdir (PLChar *buf, PLSize size)
     }
   snprintf (buf, size, "%s/p6a_test_XXXXXX", tmp);
 #ifdef _WIN32
-  _mktemp_s (buf, strlen (buf) + 1);
-  _mkdir (buf);
+  PL_ASSERT (_mktemp_s (buf, strlen (buf) + 1) == 0 && _mkdir (buf) == 0);
 #else
-  mkdtemp (buf);
+  PL_ASSERT (mkdtemp (buf) != NULL);
 #endif
 }
 
