@@ -9,6 +9,11 @@ Thank you for your interest in contributing! Here's everything you need to get s
 - C99-capable compiler (GCC or Clang)
 - CMake 3.20+
 - libcurl with development headers
+- [Bikini](https://github.com/partoska/bikini) 2.x, the INI library: install its
+  release package (`.deb`, `.rpm` or `.pkg`), or unpack the pinned
+  release archive with `.github/scripts/fetch-bikini.sh <platform> deps/bikini`
+  and point the build at it (`cmake -DCMAKE_PREFIX_PATH=$PWD/deps/bikini`,
+  `make BIKINI_PREFIX=$PWD/deps/bikini`)
 - Git
 
 ### Building
@@ -20,7 +25,7 @@ cd p6a-cmd
 # Debug build with sanitizers (recommended for development)
 ./build.sh -d -s
 
-# The binary will be at: build/src/p6a
+# The binary will be at: build/src/cli/p6a
 ```
 
 ### Build options
@@ -54,24 +59,23 @@ cd p6a-cmd
 - **Standard**: C99 with POSIX extensions (`-D_XOPEN_SOURCE=700`)
 - **Formatter**: `clang-format` (GNU style — run it before committing)
 - **Naming**:
-  - Public types: `PascalCase` with `PL` prefix (e.g., `PLEvent`, `PLCfg`)
-  - Public functions: `camelCase` with `pl` prefix (e.g., `plApiEventList`)
-  - Macros: `UPPER_SNAKE_CASE` with `PL_` prefix
-- **Warnings**: All warnings are treated as errors (`-Wall -Werror -Wextra`) — fix them, don't suppress them.
-- **Error handling**: Functions return `PLInt` status codes defined in `types.h`. Do not `exit()` from library code.
+  - Library (`src/lib`): types `PascalCase` with `PK` prefix (e.g., `PKEvent`, `PKClient`), functions `camelCase` with `pk` prefix (e.g., `pkEventList`), macros `UPPER_SNAKE_CASE` with `PK_` prefix
+  - Command line tool (`src/cli`): the same with `PKC`, `pkc` and `PKC_` (e.g., `PKCArg`, `pkcSync`, `PKC_INFO`); it uses the library's types (`PKInt`, `PKChar`) and only its public headers (`partoska.h`, `pktypes.h`)
+- **Library rules**: Library calls run within a `PKClient`, return a `PKStatus` (`partoska.h`) and record the details with `pkFail()`; the library never prints (log through `pkLog()`), keeps no global state and never calls `exit()`.
 
 ## Adding a New Command
 
 When adding a new command, update all of the following:
 
-1. `CMakeLists.txt` — add `src/<command>.c` to the source list
-2. `Makefile` — add `$(SRCDIR)/<command>.c` to `SRCS`
-3. `src/main.c` — add the command dispatch
-4. `src/arg.c` / `src/arg.h` — add argument parsing
-5. `README.md` — add to the commands table and add a full `### <command>` section
-6. `assets/installer/README.linux.txt`
-7. `assets/installer/README.macos.txt`
-8. `assets/installer/README.windows.txt`
+1. `src/cli/CMakeLists.txt` — add `src/<command>.c` to the source list
+2. `Makefile` — add `$(SRCDIR)/cli/src/<command>.c` to `CLI_SRCS`
+3. `src/cli/src/main.c` — add the command dispatch
+4. `src/cli/src/arg.c` / `src/cli/src/arg.h` — add argument parsing
+5. `src/lib/inc/partoska.h` and `src/lib/src/api.c` — add the API call, when the command needs a new endpoint
+6. `README.md` — add to the commands table and add a full `### <command>` section
+7. `assets/installer/README.linux.txt`
+8. `assets/installer/README.macos.txt`
+9. `assets/installer/README.windows.txt`
 
 ## Reporting Issues
 

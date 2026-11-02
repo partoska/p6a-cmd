@@ -88,6 +88,7 @@ renamed automatically if an event's name changes.
 | ---------- | ------------------------------------------ |
 | `login`    | Authenticate with Partoska                 |
 | `logout`   | Remove saved credentials                   |
+| `status`   | Tell whether you are logged in             |
 | `sync`     | Download and organize event photos         |
 | `list`     | List events                                |
 | `create`   | Create a new event                         |
@@ -111,6 +112,7 @@ Run `p6a help` or `p6a <command> --help` at any time for full usage.
 p6a login                          # Standard device-flow login.
 p6a login --dir /data/p6a-config   # Use a custom config location.
 p6a login --import /path/config.ini  # Import config from an INI file.
+p6a login -F json                  # Link and code as JSON, for scripts.
 ```
 
 ### `sync` — Download your photos
@@ -227,10 +229,11 @@ p6a card -e <event-id> -d bday
 p6a card -e <event-id> -d forest -L business -p letter -l cs
 ```
 
-### `logout`, `help` & `version`
+### `logout`, `status`, `help` & `version`
 
 ```bash
 p6a logout      # Clear saved credentials.
+p6a status      # Tell whether you are logged in (exit code 0 or 1; -F json|csv|one).
 p6a help        # Show usage information (also: p6a --help).
 p6a version     # Print the installed version (also: p6a --version).
 ```

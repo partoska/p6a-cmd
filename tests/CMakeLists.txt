@@ -25,41 +25,46 @@
 # You can contact the author(s) via email at ask <at> partoska.com.
 #
 
-set(SRC ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+set(LIB ${PROJECT_SOURCE_DIR}/src/lib)
+set(CLI ${PROJECT_SOURCE_DIR}/src/cli)
+
+# Library tests see the public and internal library headers, command line
+# tests the public library headers and the command line sources.
+function(pl_lib_test name)
+    add_executable(test_${name} test_${name}.c ${ARGN})
+    target_include_directories(test_${name} PRIVATE
+        ${LIB}/inc ${LIB}/src ${CMAKE_CURRENT_SOURCE_DIR})
+    add_test(NAME ${name} COMMAND test_${name})
+endfunction()
+
+function(pl_cli_test name)
+    add_executable(test_${name} test_${name}.c ${ARGN})
+    target_include_directories(test_${name} PRIVATE
+        ${LIB}/inc ${CLI}/src ${CMAKE_CURRENT_SOURCE_DIR})
+    add_test(NAME ${name} COMMAND test_${name})
+endfunction()
 
 # test_base64 — tests base64.c (no external dependencies)
-add_executable(test_base64 test_base64.c ${SRC}/base64.c)
-target_include_directories(test_base64 PRIVATE ${SRC} ${CMAKE_CURRENT_SOURCE_DIR})
-add_test(NAME base64 COMMAND test_base64)
+pl_lib_test(base64 ${LIB}/src/base64.c)
 
-# test_hash — tests hash.c (no external dependencies)
-add_executable(test_hash test_hash.c ${SRC}/hash.c)
-target_include_directories(test_hash PRIVATE ${SRC} ${CMAKE_CURRENT_SOURCE_DIR})
-add_test(NAME hash COMMAND test_hash)
+# test_throttle — tests throttle.c (depends on plat.c)
+pl_lib_test(throttle ${LIB}/src/throttle.c ${LIB}/src/plat.c)
 
-# test_arg — tests arg.c (depends on logger.c for PL_ERROR/PL_WARN output)
-add_executable(test_arg test_arg.c ${SRC}/arg.c ${SRC}/logger.c)
-target_include_directories(test_arg PRIVATE ${SRC} ${CMAKE_CURRENT_SOURCE_DIR})
-add_test(NAME arg COMMAND test_arg)
+# The client core, which every other library test builds on.
+set(LIB_CORE ${LIB}/src/client.c ${LIB}/src/config.c ${LIB}/src/plat.c
+    ${LIB}/src/throttle.c)
 
-# test_throttle — tests throttle.c (depends on logger.c)
-add_executable(test_throttle test_throttle.c ${SRC}/throttle.c ${SRC}/logger.c)
-target_include_directories(test_throttle PRIVATE ${SRC} ${CMAKE_CURRENT_SOURCE_DIR})
-add_test(NAME throttle COMMAND test_throttle)
+# test_config — tests config.c (with the client core and Bikini)
+pl_lib_test(config ${LIB_CORE})
+target_link_libraries(test_config PRIVATE Bikini::Bikini)
 
-# test_wdir — tests wdir.c (depends on fs.c, config.c, ini.c, logger.c)
-add_executable(test_wdir test_wdir.c
-    ${SRC}/wdir.c ${SRC}/fs.c ${SRC}/config.c ${SRC}/ini.c ${SRC}/logger.c)
-target_include_directories(test_wdir PRIVATE ${SRC} ${CMAKE_CURRENT_SOURCE_DIR})
-add_test(NAME wdir COMMAND test_wdir)
+# test_session — tests session.c: working directory, import, logout
+pl_lib_test(session ${LIB}/src/session.c ${LIB_CORE})
+target_link_libraries(test_session PRIVATE Bikini::Bikini)
 
-# test_ini — tests ini.c (depends on fs.c, logger.c)
-add_executable(test_ini test_ini.c ${SRC}/ini.c ${SRC}/fs.c ${SRC}/logger.c)
-target_include_directories(test_ini PRIVATE ${SRC} ${CMAKE_CURRENT_SOURCE_DIR})
-add_test(NAME ini COMMAND test_ini)
+# test_arg — tests the command line parser (depends on plat.c, log.c)
+pl_cli_test(arg ${CLI}/src/arg.c ${CLI}/src/plat.c ${CLI}/src/log.c)
 
-# test_config — tests config.c (depends on ini.c, fs.c, logger.c)
-add_executable(test_config test_config.c
-    ${SRC}/config.c ${SRC}/ini.c ${SRC}/fs.c ${SRC}/logger.c)
-target_include_directories(test_config PRIVATE ${SRC} ${CMAKE_CURRENT_SOURCE_DIR})
-add_test(NAME config COMMAND test_config)
+# test_ini — tests the INI files of sync (depends on plat.c, log.c and Bikini)
+pl_cli_test(ini ${CLI}/src/ini.c ${CLI}/src/plat.c ${CLI}/src/log.c)
+target_link_libraries(test_ini PRIVATE Bikini::Bikini)

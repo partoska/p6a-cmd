@@ -4,7 +4,7 @@ description: Construct p6a CLI commands and workflows for Partoska.com photo-sha
 license: MIT
 metadata:
   author: Partoska Laboratory
-  version: "2.4.0"
+  version: "2.5.0"
 ---
 
 # p6a CLI Skill
@@ -65,7 +65,10 @@ When the user asks to make an event public, offer the privacy check from `refere
 ```bash
 p6a login                          # OAuth device flow — prints a link and code to approve on any device
 p6a login -i config.ini            # Import credentials from an existing INI file
+p6a login -F json                  # {"uri":…,"code":…,"expires":900}, then waits; exit code tells the outcome
 p6a logout                         # Clear saved credentials
+p6a status                         # Logged in? Exit code 0 (yes) or 1 (no)
+p6a status -F json                 # {"login":true} or {"login":false}, same exit code
 ```
 
 ### List Events

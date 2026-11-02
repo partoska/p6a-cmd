@@ -1,5 +1,5 @@
 /*
- * Command Line Interface for Partoska.com media sharing service.
+ * Partoska Library - Client library for Partoska.com media sharing service.
  * Copyright (C) 2026 Fabrika Charvat s.r.o. All rights reserved.
  * Developed by Partoska Laboratory team, <https://lab.partoska.com>
  *
@@ -30,70 +30,64 @@
  * Includes
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+#include "plat.h"
 #include "test_runner.h"
 #include "throttle.h"
 #include <stdio.h>
-
-#ifdef _WIN32
-#include <windows.h>
-#else
-#include <time.h>
-#endif
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Helpers
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static PLLong
-nowMs (void)
+/* Take a token, sleeping as long as the throttle asks. */
+static PKVoid
+acquire (PKThrottle *t)
 {
-#ifdef _WIN32
-  return (PLLong)GetTickCount64 ();
-#else
-  struct timespec ts;
-  clock_gettime (CLOCK_MONOTONIC, &ts);
-  return (PLLong)ts.tv_sec * 1000 + (PLLong)ts.tv_nsec / 1000000;
-#endif
+  PKDword wait;
+  while ((wait = pkThrottleTry (t)) > 0)
+    {
+      pkSleep ((PKLong)wait);
+    }
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - Init
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testInitFields (void)
 {
-  PLThrottle t;
+  PKThrottle t;
 
   // rate=10, capacity=5 → interval=100ms, bucket=500ms, tokens full
-  plThrottleInit (&t, 10, 5);
-  PL_ASSERT_EQ (t.interval, (PLDword)100);
-  PL_ASSERT_EQ (t.capacity, (PLDword)500);
-  PL_ASSERT_EQ (t.tokens, t.capacity);
+  pkThrottleInit (&t, 10, 5);
+  PK_ASSERT_EQ (t.interval, (PKDword)100);
+  PK_ASSERT_EQ (t.capacity, (PKDword)500);
+  PK_ASSERT_EQ (t.tokens, t.capacity);
 
   // rate=100, capacity=3 → interval=10ms, bucket=30ms
-  plThrottleInit (&t, 100, 3);
-  PL_ASSERT_EQ (t.interval, (PLDword)10);
-  PL_ASSERT_EQ (t.capacity, (PLDword)30);
-  PL_ASSERT_EQ (t.tokens, t.capacity);
+  pkThrottleInit (&t, 100, 3);
+  PK_ASSERT_EQ (t.interval, (PKDword)10);
+  PK_ASSERT_EQ (t.capacity, (PKDword)30);
+  PK_ASSERT_EQ (t.tokens, t.capacity);
 
   // rate=1000, capacity=1 → interval=1ms, bucket=1ms
-  plThrottleInit (&t, 1000, 1);
-  PL_ASSERT_EQ (t.interval, (PLDword)1);
-  PL_ASSERT_EQ (t.capacity, (PLDword)1);
-  PL_ASSERT_EQ (t.tokens, t.capacity);
+  pkThrottleInit (&t, 1000, 1);
+  PK_ASSERT_EQ (t.interval, (PKDword)1);
+  PK_ASSERT_EQ (t.capacity, (PKDword)1);
+  PK_ASSERT_EQ (t.tokens, t.capacity);
 }
 
-static void
+static PKVoid
 testInitLastIsRecent (void)
 {
-  // t.last should be within 1 second of now.
-  PLThrottle t;
-  PLLong before = nowMs ();
-  plThrottleInit (&t, 10, 5);
-  PLLong after = nowMs ();
-  PL_ASSERT (t.last >= before);
-  PL_ASSERT (t.last <= after + 1);
+  // t.last is a reading of pkClockMs() taken between before and after;
+  // unsigned differences stay right when the clock wraps in between.
+  PKThrottle t;
+  PKDword before = pkClockMs ();
+  pkThrottleInit (&t, 10, 5);
+  PKDword after = pkClockMs ();
+  PK_ASSERT ((PKDword)(t.last - before) <= (PKDword)(after - before));
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -104,40 +98,40 @@ testInitLastIsRecent (void)
  * the bucket (capacity) times without ever sleeping.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testAcquireFullBucketNoSleep (void)
 {
   // rate=1000 (interval=1ms), capacity=20 → 20ms of credit up front.
   // 20 back-to-back acquires should complete in well under 20ms.
-  PLThrottle t;
-  plThrottleInit (&t, 1000, 20);
+  PKThrottle t;
+  pkThrottleInit (&t, 1000, 20);
 
-  PLLong start = nowMs ();
-  for (PLInt i = 0; i < 20; ++i)
+  PKDword start = pkClockMs ();
+  for (PKInt i = 0; i < 20; ++i)
     {
-      plThrottleAcquire (&t);
+      acquire (&t);
     }
-  PLLong elapsed = nowMs () - start;
+  PKDword elapsed = pkClockMs () - start;
 
   // Should complete in under 10ms — 20 trivial C calls take ~microseconds.
-  PL_ASSERT (elapsed < 10);
+  PK_ASSERT (elapsed < 10);
 }
 
-static void
+static PKVoid
 testAcquireDrainsTokens (void)
 {
   // After draining the bucket, tokens should be near zero.
-  PLThrottle t;
+  PKThrottle t;
   // NOTE: interval=1ms, capacity=5ms, tokens=5
-  plThrottleInit (&t, 1000, 5);
+  pkThrottleInit (&t, 1000, 5);
 
-  for (PLInt i = 0; i < 5; ++i)
+  for (PKInt i = 0; i < 5; ++i)
     {
-      plThrottleAcquire (&t);
+      acquire (&t);
     }
 
   // Tokens have been consumed; remaining balance is < one interval.
-  PL_ASSERT (t.tokens < t.interval);
+  PK_ASSERT (t.tokens < t.interval);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -148,62 +142,88 @@ testAcquireDrainsTokens (void)
  * and do 4 acquires → expect at least 3 × 10ms = 30ms wall time.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testRateLimitsThroughput (void)
 {
   // rate=100 → interval=10ms, capacity=1 → no burst.
-  PLThrottle t;
-  plThrottleInit (&t, 100, 1);
+  PKThrottle t;
+  pkThrottleInit (&t, 100, 1);
 
-  PLLong start = nowMs ();
-  for (PLInt i = 0; i < 4; ++i)
+  PKDword start = pkClockMs ();
+  for (PKInt i = 0; i < 4; ++i)
     {
-      plThrottleAcquire (&t);
+      acquire (&t);
     }
-  PLLong elapsed = nowMs () - start;
+  PKDword elapsed = pkClockMs () - start;
 
   // 4 acquires with no burst: first is free, next 3 each wait 10ms → ≥30ms.
   // NOTE: 25ms lower bound allows for timer jitter.
-  PL_ASSERT (elapsed >= 25);
+  PK_ASSERT (elapsed >= 25);
 }
 
-static void
+static PKVoid
 testRateIsBounded (void)
 {
   // The same 4 acquires at rate=100 should not take more than ~200ms
   // (leaving generous headroom for a slow CI machine).
-  PLThrottle t;
-  plThrottleInit (&t, 100, 1);
+  PKThrottle t;
+  pkThrottleInit (&t, 100, 1);
 
-  PLLong start = nowMs ();
-  for (PLInt i = 0; i < 4; ++i)
+  PKDword start = pkClockMs ();
+  for (PKInt i = 0; i < 4; ++i)
     {
-      plThrottleAcquire (&t);
+      acquire (&t);
     }
-  PLLong elapsed = nowMs () - start;
+  PKDword elapsed = pkClockMs () - start;
 
-  PL_ASSERT (elapsed < 200);
+  PK_ASSERT (elapsed < 200);
+}
+
+static PKVoid
+testTryReportsWait (void)
+{
+  // Without credit, a try takes nothing and tells how long to wait.
+  PKThrottle t;
+  pkThrottleInit (&t, 10, 1);
+
+  PK_ASSERT_EQ (pkThrottleTry (&t), 0u);
+  PKDword wait = pkThrottleTry (&t);
+  PK_ASSERT (wait > 0 && wait <= 100);
+}
+
+static PKVoid
+testClockWrap (void)
+{
+  // A reading behind the last one means the clock wrapped around: the
+  // difference is huge, and the credit is capped, not overflowed.
+  PKThrottle t;
+  pkThrottleInit (&t, 10, 3);
+  t.tokens = 0;
+  t.last = pkClockMs () + 1000u;
+
+  PK_ASSERT_EQ (pkThrottleTry (&t), 0u);
+  PK_ASSERT_EQ (t.tokens, t.capacity - t.interval);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - Capacity caps token refill
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testCapacityCapsTokens (void)
 {
   // Initialize, then manually set tokens above capacity.
   // The next acquire must clamp tokens back to capacity before consuming.
-  PLThrottle t;
+  PKThrottle t;
   // NOTE: capacity=300ms
-  plThrottleInit (&t, 10, 3);
+  pkThrottleInit (&t, 10, 3);
   // Force tokens well above capacity.
   t.tokens = t.capacity * 10;
 
-  plThrottleAcquire (&t);
+  acquire (&t);
 
   // After one acquire, tokens must be <= capacity.
-  PL_ASSERT (t.tokens <= t.capacity);
+  PK_ASSERT (t.tokens <= t.capacity);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -213,18 +233,20 @@ testCapacityCapsTokens (void)
 int
 main (void)
 {
-  PL_SUITE ("throttle - init");
-  PL_RUN (testInitFields);
-  PL_RUN (testInitLastIsRecent);
+  PK_SUITE ("throttle - init");
+  PK_RUN (testInitFields);
+  PK_RUN (testInitLastIsRecent);
 
-  PL_SUITE ("throttle - acquire (no sleep)");
-  PL_RUN (testAcquireFullBucketNoSleep);
-  PL_RUN (testAcquireDrainsTokens);
-  PL_RUN (testCapacityCapsTokens);
+  PK_SUITE ("throttle - acquire (no sleep)");
+  PK_RUN (testAcquireFullBucketNoSleep);
+  PK_RUN (testAcquireDrainsTokens);
+  PK_RUN (testCapacityCapsTokens);
 
-  PL_SUITE ("throttle - rate limiting (~40ms real time)");
-  PL_RUN (testRateLimitsThroughput);
-  PL_RUN (testRateIsBounded);
+  PK_SUITE ("throttle - rate limiting (~40ms real time)");
+  PK_RUN (testRateLimitsThroughput);
+  PK_RUN (testRateIsBounded);
+  PK_RUN (testTryReportsWait);
+  PK_RUN (testClockWrap);
 
-  PL_SUMMARY ();
+  PK_SUMMARY ();
 }

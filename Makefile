@@ -27,9 +27,13 @@
 
 # Project configuration.
 PROJECT = p6a
-VERSION = 1.14.0
+LIBRARY = partoska
+VERSION = 2.0.0
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
+LIBDIR ?= $(PREFIX)/lib
+INCLUDEDIR ?= $(PREFIX)/include
+PKGCONFIGDIR ?= $(LIBDIR)/pkgconfig
 
 # Build configuration.
 BUILD_TYPE ?= release
@@ -44,43 +48,54 @@ BINDIR_BUILD = $(BUILDDIR)
 
 # Compiler configuration.
 CC ?= cc
+AR ?= ar
+ARFLAGS = rcs
 STRIP ?= strip
 
-# Source files.
-SRCS = $(SRCDIR)/hash.c \
-       $(SRCDIR)/base64.c \
-       $(SRCDIR)/oauth.c \
-       $(SRCDIR)/api.c \
-       $(SRCDIR)/arg.c \
-       $(SRCDIR)/ini.c \
-       $(SRCDIR)/config.c \
-       $(SRCDIR)/sync.c \
-       $(SRCDIR)/list.c \
-       $(SRCDIR)/qr.c \
-       $(SRCDIR)/card.c \
-       $(SRCDIR)/link.c \
-       $(SRCDIR)/create.c \
-       $(SRCDIR)/update.c \
-       $(SRCDIR)/edit.c \
-       $(SRCDIR)/approve.c \
-       $(SRCDIR)/upload.c \
-       $(SRCDIR)/media.c \
-       $(SRCDIR)/download.c \
-       $(SRCDIR)/logger.c \
-       $(SRCDIR)/fs.c \
-       $(SRCDIR)/wdir.c \
-       $(SRCDIR)/rng.c \
-       $(SRCDIR)/throttle.c \
-       $(SRCDIR)/main.c \
-       $(SRCDIR)/3rdparty/cJSON/cJSON.c
+# Source files; keep them in step with src/lib/CMakeLists.txt and
+# src/cli/CMakeLists.txt.
+LIB_SRCS = $(SRCDIR)/lib/src/client.c \
+           $(SRCDIR)/lib/src/session.c \
+           $(SRCDIR)/lib/src/config.c \
+           $(SRCDIR)/lib/src/http.c \
+           $(SRCDIR)/lib/src/oauth.c \
+           $(SRCDIR)/lib/src/api.c \
+           $(SRCDIR)/lib/src/upload.c \
+           $(SRCDIR)/lib/src/throttle.c \
+           $(SRCDIR)/lib/src/base64.c \
+           $(SRCDIR)/lib/src/plat.c \
+           $(SRCDIR)/3rdparty/cJSON/cJSON.c
 
-OBJS = $(SRCS:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
-DEPS = $(OBJS:.o=.d)
+CLI_SRCS = $(SRCDIR)/cli/src/arg.c \
+           $(SRCDIR)/cli/src/log.c \
+           $(SRCDIR)/cli/src/report.c \
+           $(SRCDIR)/cli/src/plat.c \
+           $(SRCDIR)/cli/src/ini.c \
+           $(SRCDIR)/cli/src/list.c \
+           $(SRCDIR)/cli/src/media.c \
+           $(SRCDIR)/cli/src/create.c \
+           $(SRCDIR)/cli/src/update.c \
+           $(SRCDIR)/cli/src/edit.c \
+           $(SRCDIR)/cli/src/approve.c \
+           $(SRCDIR)/cli/src/qr.c \
+           $(SRCDIR)/cli/src/card.c \
+           $(SRCDIR)/cli/src/link.c \
+           $(SRCDIR)/cli/src/sync.c \
+           $(SRCDIR)/cli/src/download.c \
+           $(SRCDIR)/cli/src/main.c
 
-# Include directories.
-INCLUDES = -I$(SRCDIR) \
-           -I$(SRCDIR)/3rdparty/cJSON \
-           -I$(SRCDIR)/3rdparty/curl/include
+LIB_OBJS = $(LIB_SRCS:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
+CLI_OBJS = $(CLI_SRCS:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
+DEPS = $(LIB_OBJS:.o=.d) $(CLI_OBJS:.o=.d)
+
+# Include directories: the library sees its public and internal headers,
+# the command line tool only the public ones.
+LIB_INCLUDES = -I$(SRCDIR)/lib/inc \
+               -I$(SRCDIR)/lib/src \
+               -I$(SRCDIR)/3rdparty/cJSON \
+               -I$(SRCDIR)/3rdparty/curl/include
+CLI_INCLUDES = -I$(SRCDIR)/lib/inc \
+               -I$(SRCDIR)/cli/src
 
 # Compiler flags
 CFLAGS_COMMON = -std=c99 -D_XOPEN_SOURCE=700 -pedantic \
@@ -123,8 +138,21 @@ ifeq ($(SANITIZERS),1)
     LDFLAGS += $(SANITIZER_FLAGS)
 endif
 
+# Bikini 2.x (https://github.com/partoska/bikini), the INI library, installed
+# from its release packages: pkg-config, else the compiler's default paths or
+# BIKINI_PREFIX (e.g. an unpacked release archive). Its headers go in with -I,
+# not -isystem: Apple's clang searches /usr/local/include before every
+# -isystem directory.
+ifeq ($(shell pkg-config --exists bikini 2>/dev/null && echo yes),yes)
+    BIKINI_CFLAGS := $(shell pkg-config --cflags bikini)
+    BIKINI_LIBS := $(shell pkg-config --libs bikini)
+else
+    BIKINI_CFLAGS := $(if $(BIKINI_PREFIX),-I$(BIKINI_PREFIX)/include)
+    BIKINI_LIBS := $(if $(BIKINI_PREFIX),-L$(BIKINI_PREFIX)/lib) -lbikini
+endif
+
 # Complete CFLAGS; DEPFLAGS rebuild objects when a header changes.
-CFLAGS = $(CFLAGS_COMMON) $(CFLAGS_BUILD) $(INCLUDES)
+CFLAGS = $(CFLAGS_COMMON) $(CFLAGS_BUILD) $(BIKINI_CFLAGS)
 DEPFLAGS = -MMD -MP
 
 # On Windows (MSYS2/MinGW), link statically so the .exe is self-contained.
@@ -137,20 +165,36 @@ else
     LDFLAGS += $(shell pkg-config --libs libcurl 2>/dev/null || echo "-lcurl")
 endif
 
-# Target binary.
+# Target library and binary.
+LIBTARGET = $(BUILDDIR)/lib$(LIBRARY).a
+LIB_HDRS = $(SRCDIR)/lib/inc/pktypes.h $(SRCDIR)/lib/inc/partoska.h
+PCTARGET = $(BUILDDIR)/$(LIBRARY).pc
+
+# pkg-config: the static library brings libcurl and Bikini to every link;
+# macOS has no libcurl.pc, its libcurl is named directly.
+ifeq ($(shell uname -s 2>/dev/null),Darwin)
+    PC_DEPENDS = bikini
+    PC_LIBS = -lcurl
+else
+    PC_DEPENDS = libcurl bikini
+    PC_LIBS =
+endif
 TARGET = $(BINDIR_BUILD)/$(PROJECT)
 
 # Test configuration.
 TESTDIR = tests
 TESTBINDIR = $(BUILDDIR)/tests
-TEST_CFLAGS = $(CFLAGS_COMMON) $(CFLAGS_BUILD) -I$(SRCDIR) -I$(TESTDIR)
+TEST_CFLAGS = $(CFLAGS_COMMON) $(CFLAGS_BUILD) -I$(TESTDIR) $(BIKINI_CFLAGS)
+LIB_TEST_CFLAGS = $(TEST_CFLAGS) -I$(SRCDIR)/lib/inc -I$(SRCDIR)/lib/src
+LIB_CORE = $(SRCDIR)/lib/src/client.c $(SRCDIR)/lib/src/config.c \
+           $(SRCDIR)/lib/src/plat.c $(SRCDIR)/lib/src/throttle.c
+CLI_TEST_CFLAGS = $(TEST_CFLAGS) -I$(SRCDIR)/lib/inc -I$(SRCDIR)/cli/src
 TEST_BINS = $(TESTBINDIR)/test_base64 \
-            $(TESTBINDIR)/test_hash \
-            $(TESTBINDIR)/test_arg \
             $(TESTBINDIR)/test_throttle \
-            $(TESTBINDIR)/test_wdir \
-            $(TESTBINDIR)/test_ini \
-            $(TESTBINDIR)/test_config
+            $(TESTBINDIR)/test_config \
+            $(TESTBINDIR)/test_session \
+            $(TESTBINDIR)/test_arg \
+            $(TESTBINDIR)/test_ini
 
 # Phony targets.
 .PHONY: all clean install install-strip uninstall help debug release tests test
@@ -159,51 +203,60 @@ TEST_BINS = $(TESTBINDIR)/test_base64 \
 all: $(TARGET)
 
 # Build target.
-$(TARGET): $(OBJS) | $(BINDIR_BUILD)
+$(TARGET): $(CLI_OBJS) $(LIBTARGET) | $(BINDIR_BUILD)
 	@echo "Linking $(PROJECT)..."
-	$(CC) $(OBJS) -o $@ $(LDFLAGS)
+	$(CC) $(CLI_OBJS) $(LIBTARGET) -o $@ $(BIKINI_LIBS) $(LDFLAGS)
 	@echo "Build complete: $@"
 
+# Library archive.
+$(LIBTARGET): $(LIB_OBJS)
+	@echo "Archiving lib$(LIBRARY)..."
+	$(AR) $(ARFLAGS) $@ $(LIB_OBJS)
+
 # Compile source files.
-$(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR)
+$(OBJDIR)/lib/%.o: $(SRCDIR)/lib/%.c
 	@mkdir -p $(dir $@)
 	@echo "Compiling $<..."
-	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(LIB_INCLUDES) $(DEPFLAGS) -c $< -o $@
+
+$(OBJDIR)/3rdparty/%.o: $(SRCDIR)/3rdparty/%.c
+	@mkdir -p $(dir $@)
+	@echo "Compiling $<..."
+	$(CC) $(CFLAGS) $(LIB_INCLUDES) $(DEPFLAGS) -c $< -o $@
+
+$(OBJDIR)/cli/%.o: $(SRCDIR)/cli/%.c
+	@mkdir -p $(dir $@)
+	@echo "Compiling $<..."
+	$(CC) $(CFLAGS) $(CLI_INCLUDES) $(DEPFLAGS) -c $< -o $@
 
 # Create build directories.
-$(OBJDIR):
-	@mkdir -p $(OBJDIR)
-	@mkdir -p $(OBJDIR)/3rdparty/cJSON
-
 $(BINDIR_BUILD):
 	@mkdir -p $(BINDIR_BUILD)
 
 $(TESTBINDIR):
 	@mkdir -p $(TESTBINDIR)
 
-$(TESTBINDIR)/test_base64: $(TESTDIR)/test_base64.c $(SRCDIR)/base64.c | $(TESTBINDIR)
-	$(CC) $(TEST_CFLAGS) $^ -o $@
+$(TESTBINDIR)/test_base64: $(TESTDIR)/test_base64.c $(SRCDIR)/lib/src/base64.c | $(TESTBINDIR)
+	$(CC) $(LIB_TEST_CFLAGS) $^ -o $@
 
-$(TESTBINDIR)/test_hash: $(TESTDIR)/test_hash.c $(SRCDIR)/hash.c | $(TESTBINDIR)
-	$(CC) $(TEST_CFLAGS) $^ -o $@
+$(TESTBINDIR)/test_throttle: $(TESTDIR)/test_throttle.c $(SRCDIR)/lib/src/throttle.c \
+                             $(SRCDIR)/lib/src/plat.c | $(TESTBINDIR)
+	$(CC) $(LIB_TEST_CFLAGS) $^ -o $@
 
-$(TESTBINDIR)/test_arg: $(TESTDIR)/test_arg.c $(SRCDIR)/arg.c $(SRCDIR)/logger.c | $(TESTBINDIR)
-	$(CC) $(TEST_CFLAGS) $^ -o $@
+$(TESTBINDIR)/test_config: $(TESTDIR)/test_config.c $(LIB_CORE) | $(TESTBINDIR)
+	$(CC) $(LIB_TEST_CFLAGS) $^ -o $@ $(BIKINI_LIBS)
 
-$(TESTBINDIR)/test_throttle: $(TESTDIR)/test_throttle.c $(SRCDIR)/throttle.c $(SRCDIR)/logger.c | $(TESTBINDIR)
-	$(CC) $(TEST_CFLAGS) $^ -o $@
+$(TESTBINDIR)/test_session: $(TESTDIR)/test_session.c $(SRCDIR)/lib/src/session.c \
+                            $(LIB_CORE) | $(TESTBINDIR)
+	$(CC) $(LIB_TEST_CFLAGS) $^ -o $@ $(BIKINI_LIBS)
 
-$(TESTBINDIR)/test_wdir: $(TESTDIR)/test_wdir.c $(SRCDIR)/wdir.c $(SRCDIR)/fs.c \
-                         $(SRCDIR)/config.c $(SRCDIR)/ini.c $(SRCDIR)/logger.c | $(TESTBINDIR)
-	$(CC) $(TEST_CFLAGS) $^ -o $@
+$(TESTBINDIR)/test_arg: $(TESTDIR)/test_arg.c $(SRCDIR)/cli/src/arg.c \
+                        $(SRCDIR)/cli/src/plat.c $(SRCDIR)/cli/src/log.c | $(TESTBINDIR)
+	$(CC) $(CLI_TEST_CFLAGS) $^ -o $@
 
-$(TESTBINDIR)/test_ini: $(TESTDIR)/test_ini.c $(SRCDIR)/ini.c $(SRCDIR)/fs.c \
-                        $(SRCDIR)/logger.c | $(TESTBINDIR)
-	$(CC) $(TEST_CFLAGS) $^ -o $@
-
-$(TESTBINDIR)/test_config: $(TESTDIR)/test_config.c $(SRCDIR)/config.c $(SRCDIR)/ini.c \
-                           $(SRCDIR)/fs.c $(SRCDIR)/logger.c | $(TESTBINDIR)
-	$(CC) $(TEST_CFLAGS) $^ -o $@
+$(TESTBINDIR)/test_ini: $(TESTDIR)/test_ini.c $(SRCDIR)/cli/src/ini.c $(SRCDIR)/cli/src/plat.c \
+                        $(SRCDIR)/cli/src/log.c | $(TESTBINDIR)
+	$(CC) $(CLI_TEST_CFLAGS) $^ -o $@ $(BIKINI_LIBS)
 
 # Clean build artifacts.
 clean:
@@ -211,24 +264,36 @@ clean:
 	rm -rf $(BUILDDIR)
 	@echo "Clean complete."
 
-# Install binary.
-install: $(TARGET)
-	@echo "Installing $(PROJECT) to $(BINDIR)..."
-	install -d $(BINDIR)
+# The pkg-config file, for the installation prefix.
+$(PCTARGET): $(SRCDIR)/lib/partoska.pc.in | $(BINDIR_BUILD)
+	sed -e 's|$${pcfiledir}/@PL_PC_PREFIX@|$(PREFIX)|' \
+	    -e 's|$${prefix}/@CMAKE_INSTALL_LIBDIR@|$(LIBDIR)|' \
+	    -e 's|$${prefix}/@CMAKE_INSTALL_INCLUDEDIR@|$(INCLUDEDIR)|' \
+	    -e 's|@PROJECT_VERSION@|$(VERSION)|' \
+	    -e 's|@PL_PC_REQUIRES@|Requires: $(PC_DEPENDS)|' \
+	    -e 's|@PL_PC_LIBS@|$(if $(PC_LIBS), $(PC_LIBS))|' \
+	    $< > $@
+
+# Install the tool, the library, its headers and pkg-config file.
+install: $(TARGET) $(PCTARGET)
+	@echo "Installing $(PROJECT) and lib$(LIBRARY) to $(PREFIX)..."
+	install -d $(BINDIR) $(LIBDIR) $(INCLUDEDIR) $(PKGCONFIGDIR)
 	install -m 755 $(TARGET) $(BINDIR)/$(PROJECT)
+	install -m 644 $(LIBTARGET) $(LIBDIR)/lib$(LIBRARY).a
+	install -m 644 $(LIB_HDRS) $(INCLUDEDIR)/
+	install -m 644 $(PCTARGET) $(PKGCONFIGDIR)/$(LIBRARY).pc
 	@echo "Installation complete."
 
-# Install and strip binary.
-install-strip: $(TARGET)
-	@echo "Installing $(PROJECT) to $(BINDIR) (stripped)..."
-	install -d $(BINDIR)
-	install -m 755 -s $(TARGET) $(BINDIR)/$(PROJECT)
-	@echo "Installation complete."
+# Install, with the tool stripped.
+install-strip: install
+	$(STRIP) $(BINDIR)/$(PROJECT)
 
-# Uninstall binary.
+# Remove the installed files.
 uninstall:
-	@echo "Uninstalling $(PROJECT) from $(BINDIR)..."
-	rm -f $(BINDIR)/$(PROJECT)
+	@echo "Uninstalling $(PROJECT) and lib$(LIBRARY) from $(PREFIX)..."
+	rm -f $(BINDIR)/$(PROJECT) $(LIBDIR)/lib$(LIBRARY).a
+	rm -f $(INCLUDEDIR)/pktypes.h $(INCLUDEDIR)/partoska.h
+	rm -f $(PKGCONFIGDIR)/$(LIBRARY).pc
 	@echo "Uninstall complete."
 
 # Convenience targets for build types.
@@ -255,9 +320,9 @@ help:
 	@echo "  make debug                  Build debug version."
 	@echo "  make release                Build release version."
 	@echo "  make clean                  Remove build artifacts."
-	@echo "  make install                Install binary to $(BINDIR)."
-	@echo "  make install-strip          Install and strip binary."
-	@echo "  make uninstall              Remove installed binary."
+	@echo "  make install                Install tool, library, headers and pkg-config file to $(PREFIX)."
+	@echo "  make install-strip          Install, with the tool stripped."
+	@echo "  make uninstall              Remove the installed files."
 	@echo "  make tests                  Build unit test binaries."
 	@echo "  make test                   Build and run unit tests."
 	@echo "  make help                   Show this help message."
@@ -268,6 +333,7 @@ help:
 	@echo "  SANITIZERS=0|1              Enable sanitizers (default: 0)."
 	@echo "  VERBOSE_DEBUG=0|1           Enable verbose debug logging (default: 0)."
 	@echo "  PREFIX=/path                Installation prefix (default: /usr/local)."
+	@echo "  BIKINI_PREFIX=/path         Bikini install without pkg-config (e.g. /usr/local)."
 	@echo "  CC=compiler                 C compiler (default: cc)."
 	@echo ""
 	@echo "Examples:"

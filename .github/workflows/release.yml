@@ -49,11 +49,11 @@ jobs:
           set -euo pipefail
           VERSION=${GITHUB_REF_NAME#v}
           CMAKE_VERSION=$(sed -n 's/^project(p6a VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
-          HEADER_VERSION=$(for p in MAJOR MINOR PATCH; do sed -n "s/^#define PL_VERSION_${p} \([0-9]*\)$/\1/p" src/types.h; done | paste -sd. -)
+          HEADER_VERSION=$(for p in MAJOR MINOR PATCH; do sed -n "s/^#define PK_VERSION_${p} \([0-9]*\)$/\1/p" src/lib/inc/partoska.h; done | paste -sd. -)
           MAKE_VERSION=$(sed -n 's/^VERSION = \([0-9.]*\)$/\1/p' Makefile)
           echo "tag=${VERSION} cmake=${CMAKE_VERSION} header=${HEADER_VERSION} make=${MAKE_VERSION}"
           if [ "$VERSION" != "$CMAKE_VERSION" ] || [ "$VERSION" != "$HEADER_VERSION" ] || [ "$VERSION" != "$MAKE_VERSION" ]; then
-            echo "::error::tag ${GITHUB_REF_NAME} does not match CMakeLists.txt (${CMAKE_VERSION}) / types.h (${HEADER_VERSION}) / Makefile (${MAKE_VERSION})"
+            echo "::error::tag ${GITHUB_REF_NAME} does not match CMakeLists.txt (${CMAKE_VERSION}) / partoska.h (${HEADER_VERSION}) / Makefile (${MAKE_VERSION})"
             exit 1
           fi
           node .github/scripts/npm-version.js verify "$VERSION"
@@ -66,8 +66,10 @@ jobs:
         uses: actions/checkout@v7
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y cmake libcurl4-openssl-dev rpm
+      - name: Fetch Bikini
+        run: .github/scripts/fetch-bikini.sh linux_amd64 deps/bikini
       - name: Configure CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DWITH_SANITIZERS=OFF -DWITH_VERBOSE_DEBUG=OFF -DWITH_TESTS=OFF -DCMAKE_VERBOSE_MAKEFILE=ON
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DWITH_SANITIZERS=OFF -DWITH_VERBOSE_DEBUG=OFF -DWITH_TESTS=OFF -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_PREFIX_PATH="$PWD/deps/bikini"
       - name: Build
         run: cmake --build build --parallel 1
       - name: Package
@@ -76,7 +78,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: p6a_linux_amd64
-          path: build/src/p6a
+          path: build/src/cli/p6a
       - name: Upload packages
         uses: actions/upload-artifact@v7
         with:
@@ -90,8 +92,10 @@ jobs:
         uses: actions/checkout@v7
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y cmake libcurl4-openssl-dev rpm
+      - name: Fetch Bikini
+        run: .github/scripts/fetch-bikini.sh linux_arm64 deps/bikini
       - name: Configure CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DWITH_SANITIZERS=OFF -DWITH_VERBOSE_DEBUG=OFF -DWITH_TESTS=OFF -DCMAKE_VERBOSE_MAKEFILE=ON
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DWITH_SANITIZERS=OFF -DWITH_VERBOSE_DEBUG=OFF -DWITH_TESTS=OFF -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_PREFIX_PATH="$PWD/deps/bikini"
       - name: Build
         run: cmake --build build --parallel 1
       - name: Package
@@ -100,7 +104,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: p6a_linux_arm64
-          path: build/src/p6a
+          path: build/src/cli/p6a
       - name: Upload packages
         uses: actions/upload-artifact@v7
         with:
@@ -116,6 +120,8 @@ jobs:
         uses: docker/setup-qemu-action@v4
         with:
           platforms: arm
+      - name: Fetch Bikini
+        run: .github/scripts/fetch-bikini.sh linux_armhf deps/bikini
       - name: Build in Raspberry Pi OS (ARMv6)
         run: |
           docker run --rm --platform linux/arm/v6 \
@@ -125,27 +131,27 @@ jobs:
               apt-get update -qq
               DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
                 build-essential cmake libcurl4-openssl-dev
-              cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DWITH_SANITIZERS=OFF -DWITH_VERBOSE_DEBUG=OFF -DWITH_TESTS=OFF -DCMAKE_VERBOSE_MAKEFILE=ON
+              cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DWITH_SANITIZERS=OFF -DWITH_VERBOSE_DEBUG=OFF -DWITH_TESTS=OFF -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_PREFIX_PATH=/src/deps/bikini
               cmake --build build --parallel "$(nproc)"
               cpack --config build/CPackConfig.cmake -G "DEB;TGZ"
               chown -R '"$(id -u):$(id -g)"' build dist
             '
       - name: Verify ARMv6 output
         run: |
-          readelf -A build/src/p6a | grep -E "Tag_CPU_arch:|Tag_FP_arch:"
-          readelf -A build/src/p6a | grep -q "Tag_CPU_arch: v6" || {
+          readelf -A build/src/cli/p6a | grep -E "Tag_CPU_arch:|Tag_FP_arch:"
+          readelf -A build/src/cli/p6a | grep -q "Tag_CPU_arch: v6" || {
             echo "::error::binary is not ARMv6, it will not run on a Pi Zero / Zero W"
             exit 1
           }
           docker run --rm --platform linux/arm/v6 \
             -v "$PWD":/src -w /src \
-            --entrypoint /src/build/src/p6a \
+            --entrypoint /src/build/src/cli/p6a \
             balenalib/rpi-raspbian:bookworm version
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
           name: p6a_linux_armhf
-          path: build/src/p6a
+          path: build/src/cli/p6a
       - name: Upload packages
         uses: actions/upload-artifact@v7
         with:
@@ -157,8 +163,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+      - name: Fetch Bikini
+        run: .github/scripts/fetch-bikini.sh darwin_universal deps/bikini
       - name: Configure CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DWITH_SANITIZERS=OFF -DWITH_VERBOSE_DEBUG=OFF -DWITH_TESTS=OFF -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DWITH_SANITIZERS=OFF -DWITH_VERBOSE_DEBUG=OFF -DWITH_TESTS=OFF -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 -DCMAKE_PREFIX_PATH="$PWD/deps/bikini"
       - name: Build
         run: cmake --build build --parallel 1
       - name: Package
@@ -167,7 +175,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: p6a_darwin_universal
-          path: build/src/p6a
+          path: build/src/cli/p6a
       - name: Upload packages
         uses: actions/upload-artifact@v7
         with:
@@ -192,9 +200,13 @@ jobs:
             mingw-w64-ucrt-x86_64-ninja
             mingw-w64-ucrt-x86_64-nsis
             mingw-w64-ucrt-x86_64-pkgconf
+            unzip
+      - name: Fetch Bikini
+        shell: msys2 {0}
+        run: .github/scripts/fetch-bikini.sh windows_amd64 deps/bikini
       - name: Configure CMake
         shell: msys2 {0}
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWITH_SANITIZERS=OFF -DWITH_VERBOSE_DEBUG=OFF -DWITH_TESTS=OFF -DCMAKE_VERBOSE_MAKEFILE=ON -DCURL_USE_STATIC_LIBS=ON
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWITH_SANITIZERS=OFF -DWITH_VERBOSE_DEBUG=OFF -DWITH_TESTS=OFF -DCMAKE_VERBOSE_MAKEFILE=ON -DCURL_USE_STATIC_LIBS=ON -DCMAKE_PREFIX_PATH="$(cygpath -m "$PWD/deps/bikini")"
       - name: Build
         shell: msys2 {0}
         run: cmake --build build --parallel 1
@@ -207,7 +219,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: p6a_windows_amd64
-          path: build/src/p6a.exe
+          path: build/src/cli/p6a.exe
       - name: Upload packages
         uses: actions/upload-artifact@v7
         with:
@@ -231,9 +243,13 @@ jobs:
             mingw-w64-clang-aarch64-curl
             mingw-w64-clang-aarch64-ninja
             mingw-w64-clang-aarch64-pkgconf
+            unzip
+      - name: Fetch Bikini
+        shell: msys2 {0}
+        run: .github/scripts/fetch-bikini.sh windows_arm64 deps/bikini
       - name: Configure CMake
         shell: msys2 {0}
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWITH_SANITIZERS=OFF -DWITH_VERBOSE_DEBUG=OFF -DWITH_TESTS=OFF -DCMAKE_VERBOSE_MAKEFILE=ON -DCURL_USE_STATIC_LIBS=ON
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWITH_SANITIZERS=OFF -DWITH_VERBOSE_DEBUG=OFF -DWITH_TESTS=OFF -DCMAKE_VERBOSE_MAKEFILE=ON -DCURL_USE_STATIC_LIBS=ON -DCMAKE_PREFIX_PATH="$(cygpath -m "$PWD/deps/bikini")"
       - name: Build
         shell: msys2 {0}
         run: cmake --build build --parallel 1
@@ -244,7 +260,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: p6a_windows_arm64
-          path: build/src/p6a.exe
+          path: build/src/cli/p6a.exe
       - name: Upload packages
         uses: actions/upload-artifact@v7
         with:

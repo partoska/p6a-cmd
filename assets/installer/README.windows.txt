@@ -23,6 +23,7 @@ USAGE
   p6a edit           Update a media item
   p6a approve        Approve or revoke approval of a media item
   p6a logout         Clear stored credentials
+  p6a status         Tell whether you are logged in
   p6a help           Show usage information
   p6a version        Print version information
 

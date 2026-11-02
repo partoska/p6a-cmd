@@ -32,590 +32,646 @@
 
 #include "arg.h"
 #include "test_runner.h"
-#include <getopt.h>
 #include <stdio.h>
 #include <string.h>
-
-/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- * Helpers
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-
-/* getopt_long uses global state; reset it before each call. */
-static void
-resetGetopt (void)
-{
-#if defined(__linux__) || defined(__GLIBC__) || defined(_WIN32)
-  // glibc/MSYS2 extension: 0 triggers full reset.
-  optind = 0;
-#else
-  optind = 1;
-  // BSD/macOS extension.
-  optreset = 1;
-#endif
-}
-
-/* Parse helper: resets getopt state then calls plArgParse. */
-static PLInt
-parse (PLArg *args, PLInt argc, PLChar **argv)
-{
-  resetGetopt ();
-  return plArgParse (args, argc, argv);
-}
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - Error cases
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testNoArgs (void)
 {
-  PLArg args;
-  PLChar *argv[] = { "p6a" };
-  PL_ASSERT_EQ (parse (&args, 1, argv), PL_EARG);
+  PKCArg args;
+  PKChar *argv[] = { "p6a" };
+  PK_ASSERT_EQ (pkcArgParse (&args, 1, argv), PK_EARG);
 }
 
-static void
+static PKVoid
 testUnknownCommand (void)
 {
-  PLArg args;
-  PLChar *argv[] = { "p6a", "notacommand" };
-  PL_ASSERT_EQ (parse (&args, 2, argv), PL_EARG);
+  PKCArg args;
+  PKChar *argv[] = { "p6a", "notacommand" };
+  PK_ASSERT_EQ (pkcArgParse (&args, 2, argv), PK_EARG);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - help / version
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testHelp (void)
 {
-  PLArg args;
-  PLChar *argvHelp[] = { "p6a", "help" };
-  PLChar *argvShort[] = { "p6a", "-h" };
-  PLChar *argvLong[] = { "p6a", "--help" };
+  PKCArg args;
+  PKChar *argvHelp[] = { "p6a", "help" };
+  PKChar *argvShort[] = { "p6a", "-h" };
+  PKChar *argvLong[] = { "p6a", "--help" };
 
-  PL_ASSERT_EQ (parse (&args, 2, argvHelp), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CHELP);
+  PK_ASSERT_EQ (pkcArgParse (&args, 2, argvHelp), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CHELP);
 
-  PL_ASSERT_EQ (parse (&args, 2, argvShort), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CHELP);
+  PK_ASSERT_EQ (pkcArgParse (&args, 2, argvShort), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CHELP);
 
-  PL_ASSERT_EQ (parse (&args, 2, argvLong), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CHELP);
+  PK_ASSERT_EQ (pkcArgParse (&args, 2, argvLong), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CHELP);
 }
 
-static void
+static PKVoid
 testVersion (void)
 {
-  PLArg args;
-  PLChar *argvVer[] = { "p6a", "version" };
-  PLChar *argvShort[] = { "p6a", "-V" };
-  PLChar *argvLong[] = { "p6a", "--version" };
+  PKCArg args;
+  PKChar *argvVer[] = { "p6a", "version" };
+  PKChar *argvShort[] = { "p6a", "-V" };
+  PKChar *argvLong[] = { "p6a", "--version" };
 
-  PL_ASSERT_EQ (parse (&args, 2, argvVer), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CVERSION);
+  PK_ASSERT_EQ (pkcArgParse (&args, 2, argvVer), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CVERSION);
 
-  PL_ASSERT_EQ (parse (&args, 2, argvShort), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CVERSION);
+  PK_ASSERT_EQ (pkcArgParse (&args, 2, argvShort), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CVERSION);
 
-  PL_ASSERT_EQ (parse (&args, 2, argvLong), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CVERSION);
+  PK_ASSERT_EQ (pkcArgParse (&args, 2, argvLong), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CVERSION);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - login
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testLoginBare (void)
 {
-  PLArg args;
-  PLChar *argv[] = { "p6a", "login" };
+  PKCArg args;
+  PKChar *argv[] = { "p6a", "login" };
 
-  PL_ASSERT_EQ (parse (&args, 2, argv), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CLOGIN);
-  PL_ASSERT (args.c.login.path == NULL);
-  PL_ASSERT (args.dir == NULL);
+  PK_ASSERT_EQ (pkcArgParse (&args, 2, argv), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CLOGIN);
+  PK_ASSERT (args.c.login.path == NULL);
+  PK_ASSERT (args.dir == NULL);
 }
 
-static void
+static PKVoid
 testLoginImport (void)
 {
-  PLArg args;
-  PLChar *argv[] = { "p6a", "login", "--import", "/path/to/cfg.ini" };
+  PKCArg args;
+  PKChar *argv[] = { "p6a", "login", "--import", "/path/to/cfg.ini" };
 
-  PL_ASSERT_EQ (parse (&args, 4, argv), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CLOGIN);
-  PL_ASSERT_STR_EQ (args.c.login.path, "/path/to/cfg.ini");
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argv), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CLOGIN);
+  PK_ASSERT_STR_EQ (args.c.login.path, "/path/to/cfg.ini");
 }
 
-static void
+static PKVoid
 testLoginDir (void)
 {
-  PLArg args;
-  PLChar *argv[] = { "p6a", "login", "--dir", "/custom/dir" };
+  PKCArg args;
+  PKChar *argv[] = { "p6a", "login", "--dir", "/custom/dir" };
 
-  PL_ASSERT_EQ (parse (&args, 4, argv), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CLOGIN);
-  PL_ASSERT_STR_EQ (args.dir, "/custom/dir");
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argv), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CLOGIN);
+  PK_ASSERT_STR_EQ (args.dir, "/custom/dir");
+}
+
+static PKVoid
+testLoginFormat (void)
+{
+  PKCArg args;
+  PKChar *argv[] = { "p6a", "login" };
+  PKChar *argvJson[] = { "p6a", "login", "-F", "json" };
+  PKChar *argvCsv[] = { "p6a", "login", "--format", "csv" };
+  PKChar *argvOne[] = { "p6a", "login", "-1", "-i", "cfg.ini" };
+  PKChar *argvBad[] = { "p6a", "login", "-F", "pdf" };
+
+  PK_ASSERT_EQ (pkcArgParse (&args, 2, argv), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGFMT (args.flags), PKC_FMTPLAIN);
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argvJson), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CLOGIN);
+  PK_ASSERT_EQ (PKC_ARGFMT (args.flags), PKC_FMTJSON);
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argvCsv), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGFMT (args.flags), PKC_FMTCSV);
+  PK_ASSERT_EQ (pkcArgParse (&args, 5, argvOne), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGFMT (args.flags), PKC_FMTONE);
+  PK_ASSERT_STR_EQ (args.c.login.path, "cfg.ini");
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argvBad), PK_EARG);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - logout
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testLogout (void)
 {
-  PLArg args;
-  PLChar *argv[] = { "p6a", "logout" };
-  PLChar *argvExtra[] = { "p6a", "logout", "unexpected" };
+  PKCArg args;
+  PKChar *argv[] = { "p6a", "logout" };
+  PKChar *argvExtra[] = { "p6a", "logout", "unexpected" };
 
-  PL_ASSERT_EQ (parse (&args, 2, argv), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CLOGOUT);
+  PK_ASSERT_EQ (pkcArgParse (&args, 2, argv), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CLOGOUT);
 
   // Extra positional args should be rejected.
-  PL_ASSERT_EQ (parse (&args, 3, argvExtra), PL_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 3, argvExtra), PK_EARG);
+}
+
+static PKVoid
+testLogoutDir (void)
+{
+  PKCArg args;
+  PKChar *argv[] = { "p6a", "logout", "-D", "/custom/dir" };
+  PKChar *argvLong[] = { "p6a", "logout", "--dir=/custom/dir" };
+  PKChar *argvBad[] = { "p6a", "logout", "-q", "x" };
+
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argv), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CLOGOUT);
+  PK_ASSERT_STR_EQ (args.dir, "/custom/dir");
+
+  PK_ASSERT_EQ (pkcArgParse (&args, 3, argvLong), PK_OK);
+  PK_ASSERT_STR_EQ (args.dir, "/custom/dir");
+
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argvBad), PK_EARG);
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Tests - status
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+static PKVoid
+testStatus (void)
+{
+  PKCArg args;
+  PKChar *argv[] = { "p6a", "status" };
+  PKChar *argvDir[] = { "p6a", "status", "--dir", "/custom/dir" };
+  PKChar *argvExtra[] = { "p6a", "status", "unexpected" };
+  PKChar *argvAfter[] = { "p6a", "status", "-D", "/custom/dir", "extra" };
+  PKChar *argvBad[] = { "p6a", "status", "-o" };
+  PKChar *argvJson[] = { "p6a", "status", "-F", "json" };
+  PKChar *argvCsv[] = { "p6a", "status", "--format=csv" };
+  PKChar *argvOne[] = { "p6a", "status", "-1" };
+  PKChar *argvFmtBad[] = { "p6a", "status", "-F", "svg" };
+
+  PK_ASSERT_EQ (pkcArgParse (&args, 2, argv), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CSTATUS);
+  PK_ASSERT (args.dir == NULL);
+
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argvDir), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CSTATUS);
+  PK_ASSERT_STR_EQ (args.dir, "/custom/dir");
+
+  // Positional arguments, before or after the options, and unknown options
+  // are rejected.
+  PK_ASSERT_EQ (pkcArgParse (&args, 3, argvExtra), PK_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 5, argvAfter), PK_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 3, argvBad), PK_EARG);
+
+  PK_ASSERT_EQ (pkcArgParse (&args, 2, argv), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGFMT (args.flags), PKC_FMTPLAIN);
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argvJson), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGFMT (args.flags), PKC_FMTJSON);
+  PK_ASSERT_EQ (pkcArgParse (&args, 3, argvCsv), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGFMT (args.flags), PKC_FMTCSV);
+  PK_ASSERT_EQ (pkcArgParse (&args, 3, argvOne), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGFMT (args.flags), PKC_FMTONE);
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argvFmtBad), PK_EARG);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - sync
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testSync (void)
 {
-  PLArg args;
-  PLChar *argv[] = { "p6a", "sync", "-t", "/photos" };
-  PLChar *argvNoTgt[] = { "p6a", "sync" };
-  PLChar *argvOwn[] = { "p6a", "sync", "-t", "/photos", "--owner-only" };
-  PLChar *argvFav[] = { "p6a", "sync", "-t", "/photos", "--favorite-only" };
-  PLChar *argvBoth[] = { "p6a", "sync", "-t", "/photos", "-o", "-f" };
+  PKCArg args;
+  PKChar *argv[] = { "p6a", "sync", "-t", "/photos" };
+  PKChar *argvNoTgt[] = { "p6a", "sync" };
+  PKChar *argvOwn[] = { "p6a", "sync", "-t", "/photos", "--owner-only" };
+  PKChar *argvFav[] = { "p6a", "sync", "-t", "/photos", "--favorite-only" };
+  PKChar *argvBoth[] = { "p6a", "sync", "-t", "/photos", "-o", "-f" };
 
-  PL_ASSERT_EQ (parse (&args, 4, argv), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CSYNC);
-  PL_ASSERT_STR_EQ (args.c.sync.target, "/photos");
-  PL_ASSERT_EQ (args.flags & PL_FOWN, (PLDword)0);
-  PL_ASSERT_EQ (args.flags & PL_FFAV, (PLDword)0);
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argv), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CSYNC);
+  PK_ASSERT_STR_EQ (args.c.sync.target, "/photos");
+  PK_ASSERT_EQ (args.flags & PKC_FOWN, (PKDword)0);
+  PK_ASSERT_EQ (args.flags & PKC_FFAV, (PKDword)0);
 
-  PL_ASSERT_EQ (parse (&args, 2, argvNoTgt), PL_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 2, argvNoTgt), PK_EARG);
 
-  PL_ASSERT_EQ (parse (&args, 5, argvOwn), PL_EOK);
-  PL_ASSERT (args.flags & PL_FOWN);
+  PK_ASSERT_EQ (pkcArgParse (&args, 5, argvOwn), PK_OK);
+  PK_ASSERT (args.flags & PKC_FOWN);
 
-  PL_ASSERT_EQ (parse (&args, 5, argvFav), PL_EOK);
-  PL_ASSERT (args.flags & PL_FFAV);
+  PK_ASSERT_EQ (pkcArgParse (&args, 5, argvFav), PK_OK);
+  PK_ASSERT (args.flags & PKC_FFAV);
 
-  PL_ASSERT_EQ (parse (&args, 6, argvBoth), PL_EOK);
-  PL_ASSERT (args.flags & PL_FOWN);
-  PL_ASSERT (args.flags & PL_FFAV);
+  PK_ASSERT_EQ (pkcArgParse (&args, 6, argvBoth), PK_OK);
+  PK_ASSERT (args.flags & PKC_FOWN);
+  PK_ASSERT (args.flags & PKC_FFAV);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - list
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testList (void)
 {
-  PLArg args;
-  PLChar *argv[] = { "p6a", "list" };
-  PLChar *argvQuery[] = { "p6a", "list", "-q", "Birthday" };
-  PLChar *argvOne[] = { "p6a", "list", "-1" };
-  PLChar *argvJson[] = { "p6a", "list", "-F", "json" };
-  PLChar *argvCsv[] = { "p6a", "list", "-F", "csv" };
+  PKCArg args;
+  PKChar *argv[] = { "p6a", "list" };
+  PKChar *argvQuery[] = { "p6a", "list", "-q", "Birthday" };
+  PKChar *argvOne[] = { "p6a", "list", "-1" };
+  PKChar *argvJson[] = { "p6a", "list", "-F", "json" };
+  PKChar *argvCsv[] = { "p6a", "list", "-F", "csv" };
 
-  PL_ASSERT_EQ (parse (&args, 2, argv), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CLIST);
-  PL_ASSERT (args.c.list.query == NULL);
+  PK_ASSERT_EQ (pkcArgParse (&args, 2, argv), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CLIST);
+  PK_ASSERT (args.c.list.query == NULL);
 
-  PL_ASSERT_EQ (parse (&args, 4, argvQuery), PL_EOK);
-  PL_ASSERT_STR_EQ (args.c.list.query, "Birthday");
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argvQuery), PK_OK);
+  PK_ASSERT_STR_EQ (args.c.list.query, "Birthday");
 
-  PL_ASSERT_EQ (parse (&args, 3, argvOne), PL_EOK);
-  PL_ASSERT_EQ (PL_ARGFMT (args.flags), PL_FMTONE);
+  PK_ASSERT_EQ (pkcArgParse (&args, 3, argvOne), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGFMT (args.flags), PKC_FMTONE);
 
-  PL_ASSERT_EQ (parse (&args, 4, argvJson), PL_EOK);
-  PL_ASSERT_EQ (PL_ARGFMT (args.flags), PL_FMTJSON);
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argvJson), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGFMT (args.flags), PKC_FMTJSON);
 
-  PL_ASSERT_EQ (parse (&args, 4, argvCsv), PL_EOK);
-  PL_ASSERT_EQ (PL_ARGFMT (args.flags), PL_FMTCSV);
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argvCsv), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGFMT (args.flags), PKC_FMTCSV);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - create
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testCreate (void)
 {
-  PLArg args;
-  PLChar *argv[] = { "p6a", "create", "-n", "My Event" };
-  PLChar *argvNoName[] = { "p6a", "create" };
+  PKCArg args;
+  PKChar *argv[] = { "p6a", "create", "-n", "My Event" };
+  PKChar *argvNoName[] = { "p6a", "create" };
 
-  PL_ASSERT_EQ (parse (&args, 4, argv), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CCREATE);
-  PL_ASSERT_STR_EQ (args.c.create.name, "My Event");
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argv), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CCREATE);
+  PK_ASSERT_STR_EQ (args.c.create.name, "My Event");
 
-  PL_ASSERT_EQ (parse (&args, 2, argvNoName), PL_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 2, argvNoName), PK_EARG);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - update
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testUpdate (void)
 {
-  PLArg args;
-  PLChar *argvRename[]
+  PKCArg args;
+  PKChar *argvRename[]
       = { "p6a", "update", "-e", "event-uuid", "-n", "New Name" };
-  PLChar *argvPub[] = { "p6a", "update", "-e", "event-uuid", "--public" };
-  PLChar *argvPriv[] = { "p6a", "update", "-e", "event-uuid", "--private" };
-  PLChar *argvFav[] = { "p6a", "update", "-e", "event-uuid", "--favorite" };
-  PLChar *argvNofav[]
+  PKChar *argvPub[] = { "p6a", "update", "-e", "event-uuid", "--public" };
+  PKChar *argvPriv[] = { "p6a", "update", "-e", "event-uuid", "--private" };
+  PKChar *argvFav[] = { "p6a", "update", "-e", "event-uuid", "--favorite" };
+  PKChar *argvNofav[]
       = { "p6a", "update", "-e", "event-uuid", "--no-favorite" };
-  PLChar *argvMod[] = { "p6a", "update", "-e", "event-uuid", "-m" };
-  PLChar *argvNomod[] = { "p6a", "update", "-e", "event-uuid", "-M" };
-  PLChar *argvLongMod[]
+  PKChar *argvMod[] = { "p6a", "update", "-e", "event-uuid", "-m" };
+  PKChar *argvNomod[] = { "p6a", "update", "-e", "event-uuid", "-M" };
+  PKChar *argvLongMod[]
       = { "p6a", "update", "-e", "event-uuid", "--moderated" };
-  PLChar *argvLongNomod[]
+  PKChar *argvLongNomod[]
       = { "p6a", "update", "-e", "event-uuid", "--no-moderated" };
 
-  PL_ASSERT_EQ (parse (&args, 6, argvRename), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CUPDATE);
-  PL_ASSERT_STR_EQ (args.c.update.event, "event-uuid");
-  PL_ASSERT_STR_EQ (args.c.update.name, "New Name");
+  PK_ASSERT_EQ (pkcArgParse (&args, 6, argvRename), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CUPDATE);
+  PK_ASSERT_STR_EQ (args.c.update.event, "event-uuid");
+  PK_ASSERT_STR_EQ (args.c.update.name, "New Name");
 
-  PL_ASSERT_EQ (parse (&args, 5, argvPub), PL_EOK);
-  PL_ASSERT_EQ (PL_ARGPUB (args.flags), 1);
+  PK_ASSERT_EQ (pkcArgParse (&args, 5, argvPub), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGPUB (args.flags), 1);
 
-  PL_ASSERT_EQ (parse (&args, 5, argvPriv), PL_EOK);
-  PL_ASSERT_EQ (PL_ARGPUB (args.flags), 0);
+  PK_ASSERT_EQ (pkcArgParse (&args, 5, argvPriv), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGPUB (args.flags), 0);
 
-  PL_ASSERT_EQ (parse (&args, 5, argvFav), PL_EOK);
-  PL_ASSERT_EQ (PL_ARGFAV (args.flags), 1);
+  PK_ASSERT_EQ (pkcArgParse (&args, 5, argvFav), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGFAV (args.flags), 1);
 
-  PL_ASSERT_EQ (parse (&args, 5, argvNofav), PL_EOK);
-  PL_ASSERT_EQ (PL_ARGFAV (args.flags), 0);
+  PK_ASSERT_EQ (pkcArgParse (&args, 5, argvNofav), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGFAV (args.flags), 0);
 
-  PL_ASSERT_EQ (parse (&args, 5, argvMod), PL_EOK);
-  PL_ASSERT_EQ (PL_ARGMOD (args.flags), 1);
+  PK_ASSERT_EQ (pkcArgParse (&args, 5, argvMod), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGMOD (args.flags), 1);
 
-  PL_ASSERT_EQ (parse (&args, 5, argvNomod), PL_EOK);
-  PL_ASSERT_EQ (PL_ARGMOD (args.flags), 0);
+  PK_ASSERT_EQ (pkcArgParse (&args, 5, argvNomod), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGMOD (args.flags), 0);
 
-  PL_ASSERT_EQ (parse (&args, 5, argvLongMod), PL_EOK);
-  PL_ASSERT_EQ (PL_ARGMOD (args.flags), 1);
+  PK_ASSERT_EQ (pkcArgParse (&args, 5, argvLongMod), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGMOD (args.flags), 1);
 
-  PL_ASSERT_EQ (parse (&args, 5, argvLongNomod), PL_EOK);
-  PL_ASSERT_EQ (PL_ARGMOD (args.flags), 0);
+  PK_ASSERT_EQ (pkcArgParse (&args, 5, argvLongNomod), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGMOD (args.flags), 0);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - qr
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testQr (void)
 {
-  PLArg args;
-  PLChar *argv[] = { "p6a", "qr", "-e", "event-uuid" };
-  PLChar *argvOut[] = { "p6a", "qr", "-e", "event-uuid", "-t", "out.png" };
-  PLChar *argvSvg[] = { "p6a", "qr", "-e", "event-uuid", "-F", "svg" };
-  PLChar *argvPng[] = { "p6a", "qr", "-e", "event-uuid",
-                        "--format", "png" };
-  PLChar *argvBadFmt[] = { "p6a", "qr", "-e", "event-uuid", "-F", "pdf" };
-  PLChar *argvOldSvg[] = { "p6a", "qr", "-e", "event-uuid", "--svg" };
-  PLChar *argvNone[] = { "p6a", "qr" };
+  PKCArg args;
+  PKChar *argv[] = { "p6a", "qr", "-e", "event-uuid" };
+  PKChar *argvOut[] = { "p6a", "qr", "-e", "event-uuid", "-t", "out.png" };
+  PKChar *argvSvg[] = { "p6a", "qr", "-e", "event-uuid", "-F", "svg" };
+  PKChar *argvPng[] = { "p6a", "qr", "-e", "event-uuid", "--format", "png" };
+  PKChar *argvBadFmt[] = { "p6a", "qr", "-e", "event-uuid", "-F", "pdf" };
+  PKChar *argvOldSvg[] = { "p6a", "qr", "-e", "event-uuid", "--svg" };
+  PKChar *argvNone[] = { "p6a", "qr" };
 
-  PL_ASSERT_EQ (parse (&args, 4, argv), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CQR);
-  PL_ASSERT_STR_EQ (args.c.qr.event, "event-uuid");
-  PL_ASSERT (args.c.qr.out == NULL);
-  PL_ASSERT_EQ (PL_ARGFMT (args.flags), PL_FMTPLAIN);
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argv), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CQR);
+  PK_ASSERT_STR_EQ (args.c.qr.event, "event-uuid");
+  PK_ASSERT (args.c.qr.out == NULL);
+  PK_ASSERT_EQ (PKC_ARGFMT (args.flags), PKC_FMTPLAIN);
 
-  PL_ASSERT_EQ (parse (&args, 6, argvOut), PL_EOK);
-  PL_ASSERT_STR_EQ (args.c.qr.out, "out.png");
+  PK_ASSERT_EQ (pkcArgParse (&args, 6, argvOut), PK_OK);
+  PK_ASSERT_STR_EQ (args.c.qr.out, "out.png");
 
-  PL_ASSERT_EQ (parse (&args, 6, argvSvg), PL_EOK);
-  PL_ASSERT_EQ (PL_ARGFMT (args.flags), PL_FMTSVG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 6, argvSvg), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGFMT (args.flags), PKC_FMTSVG);
 
-  PL_ASSERT_EQ (parse (&args, 6, argvPng), PL_EOK);
-  PL_ASSERT_EQ (PL_ARGFMT (args.flags), PL_FMTPNG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 6, argvPng), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGFMT (args.flags), PKC_FMTPNG);
 
-  PL_ASSERT_EQ (parse (&args, 6, argvBadFmt), PL_EARG);
-  PL_ASSERT_EQ (parse (&args, 5, argvOldSvg), PL_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 6, argvBadFmt), PK_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 5, argvOldSvg), PK_EARG);
 
-  PL_ASSERT_EQ (parse (&args, 2, argvNone), PL_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 2, argvNone), PK_EARG);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - card
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testCard (void)
 {
-  PLArg args;
-  PLChar *argv[] = { "p6a", "card", "-e", "event-uuid", "-d", "bday" };
-  PLChar *argvOpts[]
-      = { "p6a",     "card",      "--event",  "event-uuid", "--design",
-          "forest",  "--target",  "card.jpg", "--locale",   "cs",
-          "--layout", "business", "--paper",   "letter",     "--format",
-          "jpg",     "--no-background" };
-  PLChar *argvPdf[] = { "p6a", "card", "-e", "event-uuid",
-                        "-d",  "tech", "-F", "pdf" };
-  PLChar *argvSilver[] = { "p6a", "card", "-e", "event-uuid",
-                           "-d",  "silver" };
-  PLChar *argvNineties[] = { "p6a", "card", "-e", "event-uuid",
-                             "-d",  "nineties" };
-  PLChar *argvBadFmt[] = { "p6a", "card", "-e", "event-uuid",
-                           "-d",  "tech", "-F", "svg" };
-  PLChar *argvNoEvent[] = { "p6a", "card", "-d", "bday" };
-  PLChar *argvNoDesign[] = { "p6a", "card", "-e", "event-uuid" };
+  PKCArg args;
+  PKChar *argv[] = { "p6a", "card", "-e", "event-uuid", "-d", "bday" };
+  PKChar *argvOpts[]
+      = { "p6a",      "card",           "--event",  "event-uuid", "--design",
+          "forest",   "--target",       "card.jpg", "--locale",   "cs",
+          "--layout", "business",       "--paper",  "letter",     "--format",
+          "jpg",      "--no-background" };
+  PKChar *argvPdf[]
+      = { "p6a", "card", "-e", "event-uuid", "-d", "tech", "-F", "pdf" };
+  PKChar *argvSilver[] = { "p6a", "card", "-e", "event-uuid", "-d", "silver" };
+  PKChar *argvNineties[]
+      = { "p6a", "card", "-e", "event-uuid", "-d", "nineties" };
+  PKChar *argvBadFmt[]
+      = { "p6a", "card", "-e", "event-uuid", "-d", "tech", "-F", "svg" };
+  PKChar *argvNoEvent[] = { "p6a", "card", "-d", "bday" };
+  PKChar *argvNoDesign[] = { "p6a", "card", "-e", "event-uuid" };
 
-  PL_ASSERT_EQ (parse (&args, 6, argv), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CCARD);
-  PL_ASSERT_STR_EQ (args.c.card.event, "event-uuid");
-  PL_ASSERT_STR_EQ (args.c.card.design, "bday");
-  PL_ASSERT (args.c.card.out == NULL);
-  PL_ASSERT (args.c.card.locale == NULL);
-  PL_ASSERT (args.c.card.layout == NULL);
-  PL_ASSERT (args.c.card.paper == NULL);
-  PL_ASSERT_EQ (PL_ARGFMT (args.flags), PL_FMTPLAIN);
-  PL_ASSERT_EQ (args.flags & PL_FNOBG, (PLDword)0);
+  PK_ASSERT_EQ (pkcArgParse (&args, 6, argv), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CCARD);
+  PK_ASSERT_STR_EQ (args.c.card.event, "event-uuid");
+  PK_ASSERT_STR_EQ (args.c.card.design, "bday");
+  PK_ASSERT (args.c.card.out == NULL);
+  PK_ASSERT (args.c.card.locale == NULL);
+  PK_ASSERT (args.c.card.layout == NULL);
+  PK_ASSERT (args.c.card.paper == NULL);
+  PK_ASSERT_EQ (PKC_ARGFMT (args.flags), PKC_FMTPLAIN);
+  PK_ASSERT_EQ (args.flags & PKC_FNOBG, (PKDword)0);
 
-  PL_ASSERT_EQ (parse (&args, 17, argvOpts), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CCARD);
-  PL_ASSERT_STR_EQ (args.c.card.event, "event-uuid");
-  PL_ASSERT_STR_EQ (args.c.card.design, "forest");
-  PL_ASSERT_STR_EQ (args.c.card.out, "card.jpg");
-  PL_ASSERT_STR_EQ (args.c.card.locale, "cs");
-  PL_ASSERT_STR_EQ (args.c.card.layout, "business");
-  PL_ASSERT_STR_EQ (args.c.card.paper, "letter");
-  PL_ASSERT_EQ (PL_ARGFMT (args.flags), PL_FMTJPG);
-  PL_ASSERT (args.flags & PL_FNOBG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 17, argvOpts), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CCARD);
+  PK_ASSERT_STR_EQ (args.c.card.event, "event-uuid");
+  PK_ASSERT_STR_EQ (args.c.card.design, "forest");
+  PK_ASSERT_STR_EQ (args.c.card.out, "card.jpg");
+  PK_ASSERT_STR_EQ (args.c.card.locale, "cs");
+  PK_ASSERT_STR_EQ (args.c.card.layout, "business");
+  PK_ASSERT_STR_EQ (args.c.card.paper, "letter");
+  PK_ASSERT_EQ (PKC_ARGFMT (args.flags), PKC_FMTJPG);
+  PK_ASSERT (args.flags & PKC_FNOBG);
 
-  PL_ASSERT_EQ (parse (&args, 8, argvPdf), PL_EOK);
-  PL_ASSERT_EQ (PL_ARGFMT (args.flags), PL_FMTPDF);
+  PK_ASSERT_EQ (pkcArgParse (&args, 8, argvPdf), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGFMT (args.flags), PKC_FMTPDF);
 
-  PL_ASSERT_EQ (parse (&args, 6, argvSilver), PL_EOK);
-  PL_ASSERT_STR_EQ (args.c.card.design, "silver");
+  PK_ASSERT_EQ (pkcArgParse (&args, 6, argvSilver), PK_OK);
+  PK_ASSERT_STR_EQ (args.c.card.design, "silver");
 
-  PL_ASSERT_EQ (parse (&args, 6, argvNineties), PL_EOK);
-  PL_ASSERT_STR_EQ (args.c.card.design, "nineties");
+  PK_ASSERT_EQ (pkcArgParse (&args, 6, argvNineties), PK_OK);
+  PK_ASSERT_STR_EQ (args.c.card.design, "nineties");
 
-  PL_ASSERT_EQ (parse (&args, 8, argvBadFmt), PL_EARG);
-  PL_ASSERT_EQ (parse (&args, 4, argvNoEvent), PL_EARG);
-  PL_ASSERT_EQ (parse (&args, 4, argvNoDesign), PL_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 8, argvBadFmt), PK_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argvNoEvent), PK_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argvNoDesign), PK_EARG);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - link
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testLink (void)
 {
-  PLArg args;
-  PLChar *argv[] = { "p6a", "link", "-e", "event-uuid" };
-  PLChar *argvNone[] = { "p6a", "link" };
+  PKCArg args;
+  PKChar *argv[] = { "p6a", "link", "-e", "event-uuid" };
+  PKChar *argvNone[] = { "p6a", "link" };
 
-  PL_ASSERT_EQ (parse (&args, 4, argv), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CLINK);
-  PL_ASSERT_STR_EQ (args.c.link.event, "event-uuid");
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argv), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CLINK);
+  PK_ASSERT_STR_EQ (args.c.link.event, "event-uuid");
 
-  PL_ASSERT_EQ (parse (&args, 2, argvNone), PL_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 2, argvNone), PK_EARG);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - media
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testMedia (void)
 {
-  PLArg args;
-  PLChar *argv[] = { "p6a", "media", "-e", "event-uuid" };
-  PLChar *argvOwn[] = { "p6a", "media", "-e", "event-uuid", "-o" };
-  PLChar *argvNone[] = { "p6a", "media" };
+  PKCArg args;
+  PKChar *argv[] = { "p6a", "media", "-e", "event-uuid" };
+  PKChar *argvOwn[] = { "p6a", "media", "-e", "event-uuid", "-o" };
+  PKChar *argvNone[] = { "p6a", "media" };
 
-  PL_ASSERT_EQ (parse (&args, 4, argv), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CMEDIA);
-  PL_ASSERT_STR_EQ (args.c.media.event, "event-uuid");
-  PL_ASSERT_EQ (args.flags & PL_FOWN, (PLDword)0);
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argv), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CMEDIA);
+  PK_ASSERT_STR_EQ (args.c.media.event, "event-uuid");
+  PK_ASSERT_EQ (args.flags & PKC_FOWN, (PKDword)0);
 
-  PL_ASSERT_EQ (parse (&args, 5, argvOwn), PL_EOK);
-  PL_ASSERT (args.flags & PL_FOWN);
+  PK_ASSERT_EQ (pkcArgParse (&args, 5, argvOwn), PK_OK);
+  PK_ASSERT (args.flags & PKC_FOWN);
 
-  PL_ASSERT_EQ (parse (&args, 2, argvNone), PL_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 2, argvNone), PK_EARG);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - download
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testDownload (void)
 {
-  PLArg args;
-  PLChar *argv[] = { "p6a", "download", "-e", "event-uuid", "-t", "./out" };
-  PLChar *argvSingle[] = { "p6a", "download",   "-e", "event-uuid",
+  PKCArg args;
+  PKChar *argv[] = { "p6a", "download", "-e", "event-uuid", "-t", "./out" };
+  PKChar *argvSingle[] = { "p6a", "download",   "-e", "event-uuid",
                            "-m",  "media-uuid", "-t", "photo.jpg" };
-  PLChar *argvNone[] = { "p6a", "download" };
+  PKChar *argvNone[] = { "p6a", "download" };
 
-  PL_ASSERT_EQ (parse (&args, 6, argv), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CDOWNLOAD);
-  PL_ASSERT_STR_EQ (args.c.download.event, "event-uuid");
-  PL_ASSERT_STR_EQ (args.c.download.target, "./out");
-  PL_ASSERT (args.c.download.media == NULL);
+  PK_ASSERT_EQ (pkcArgParse (&args, 6, argv), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CDOWNLOAD);
+  PK_ASSERT_STR_EQ (args.c.download.event, "event-uuid");
+  PK_ASSERT_STR_EQ (args.c.download.target, "./out");
+  PK_ASSERT (args.c.download.media == NULL);
 
-  PL_ASSERT_EQ (parse (&args, 8, argvSingle), PL_EOK);
-  PL_ASSERT_STR_EQ (args.c.download.media, "media-uuid");
-  PL_ASSERT_STR_EQ (args.c.download.target, "photo.jpg");
+  PK_ASSERT_EQ (pkcArgParse (&args, 8, argvSingle), PK_OK);
+  PK_ASSERT_STR_EQ (args.c.download.media, "media-uuid");
+  PK_ASSERT_STR_EQ (args.c.download.target, "photo.jpg");
 
-  PL_ASSERT_EQ (parse (&args, 2, argvNone), PL_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 2, argvNone), PK_EARG);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - upload
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testUpload (void)
 {
-  PLArg args;
-  PLChar *argv[] = { "p6a", "upload", "-e", "event-uuid", "-s", "photo.jpg" };
-  PLChar *argvLong[] = { "p6a",      "upload",    "--event",  "event-uuid",
-                         "--source", "photo.jpg" };
-  PLChar *argvDir[] = { "p6a",    "upload",     "-e",      "event-uuid",
-                        "-s",     "photo.jpg",  "--dir",   "/custom/dir" };
-  PLChar *argvNoEvent[] = { "p6a", "upload", "-s", "photo.jpg" };
-  PLChar *argvNoSource[] = { "p6a", "upload", "-e", "event-uuid" };
-  PLChar *argvNone[] = { "p6a", "upload" };
+  PKCArg args;
+  PKChar *argv[] = { "p6a", "upload", "-e", "event-uuid", "-s", "photo.jpg" };
+  PKChar *argvLong[]
+      = { "p6a", "upload", "--event", "event-uuid", "--source", "photo.jpg" };
+  PKChar *argvDir[] = { "p6a", "upload",    "-e",    "event-uuid",
+                        "-s",  "photo.jpg", "--dir", "/custom/dir" };
+  PKChar *argvNoEvent[] = { "p6a", "upload", "-s", "photo.jpg" };
+  PKChar *argvNoSource[] = { "p6a", "upload", "-e", "event-uuid" };
+  PKChar *argvNone[] = { "p6a", "upload" };
 
-  PL_ASSERT_EQ (parse (&args, 6, argv), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CUPLOAD);
-  PL_ASSERT_STR_EQ (args.c.upload.event, "event-uuid");
-  PL_ASSERT_STR_EQ (args.c.upload.source, "photo.jpg");
-  PL_ASSERT (args.dir == NULL);
+  PK_ASSERT_EQ (pkcArgParse (&args, 6, argv), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CUPLOAD);
+  PK_ASSERT_STR_EQ (args.c.upload.event, "event-uuid");
+  PK_ASSERT_STR_EQ (args.c.upload.source, "photo.jpg");
+  PK_ASSERT (args.dir == NULL);
 
-  PL_ASSERT_EQ (parse (&args, 6, argvLong), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CUPLOAD);
-  PL_ASSERT_STR_EQ (args.c.upload.event, "event-uuid");
-  PL_ASSERT_STR_EQ (args.c.upload.source, "photo.jpg");
+  PK_ASSERT_EQ (pkcArgParse (&args, 6, argvLong), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CUPLOAD);
+  PK_ASSERT_STR_EQ (args.c.upload.event, "event-uuid");
+  PK_ASSERT_STR_EQ (args.c.upload.source, "photo.jpg");
 
-  PL_ASSERT_EQ (parse (&args, 8, argvDir), PL_EOK);
-  PL_ASSERT_STR_EQ (args.dir, "/custom/dir");
+  PK_ASSERT_EQ (pkcArgParse (&args, 8, argvDir), PK_OK);
+  PK_ASSERT_STR_EQ (args.dir, "/custom/dir");
 
   // Missing event, source, or both must be rejected.
-  PL_ASSERT_EQ (parse (&args, 4, argvNoEvent), PL_EARG);
-  PL_ASSERT_EQ (parse (&args, 4, argvNoSource), PL_EARG);
-  PL_ASSERT_EQ (parse (&args, 2, argvNone), PL_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argvNoEvent), PK_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argvNoSource), PK_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 2, argvNone), PK_EARG);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - edit
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testEdit (void)
 {
-  PLArg args;
-  PLChar *argvFav[] = { "p6a", "edit", "-e", "event-uuid",
-                        "-m",  "media-uuid", "-f" };
-  PLChar *argvNofav[] = { "p6a", "edit", "-e", "event-uuid",
-                          "-m",  "media-uuid", "-F" };
-  PLChar *argvLongFav[] = { "p6a", "edit",       "-e", "event-uuid",
+  PKCArg args;
+  PKChar *argvFav[]
+      = { "p6a", "edit", "-e", "event-uuid", "-m", "media-uuid", "-f" };
+  PKChar *argvNofav[]
+      = { "p6a", "edit", "-e", "event-uuid", "-m", "media-uuid", "-F" };
+  PKChar *argvLongFav[] = { "p6a", "edit",       "-e",        "event-uuid",
                             "-m",  "media-uuid", "--favorite" };
-  PLChar *argvLongNofav[] = { "p6a", "edit",       "-e", "event-uuid",
-                              "-m",  "media-uuid", "--no-favorite" };
-  PLChar *argvNoEvent[] = { "p6a", "edit", "-m", "media-uuid", "-f" };
-  PLChar *argvNoMedia[] = { "p6a", "edit", "-e", "event-uuid", "-f" };
-  PLChar *argvNoField[] = { "p6a", "edit", "-e", "event-uuid",
-                            "-m",  "media-uuid" };
+  PKChar *argvLongNofav[]
+      = { "p6a", "edit",       "-e",           "event-uuid",
+          "-m",  "media-uuid", "--no-favorite" };
+  PKChar *argvNoEvent[] = { "p6a", "edit", "-m", "media-uuid", "-f" };
+  PKChar *argvNoMedia[] = { "p6a", "edit", "-e", "event-uuid", "-f" };
+  PKChar *argvNoField[]
+      = { "p6a", "edit", "-e", "event-uuid", "-m", "media-uuid" };
 
-  PL_ASSERT_EQ (parse (&args, 7, argvFav), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CEDIT);
-  PL_ASSERT_STR_EQ (args.c.edit.event, "event-uuid");
-  PL_ASSERT_STR_EQ (args.c.edit.media, "media-uuid");
-  PL_ASSERT_EQ (PL_ARGFAV (args.flags), 1);
+  PK_ASSERT_EQ (pkcArgParse (&args, 7, argvFav), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CEDIT);
+  PK_ASSERT_STR_EQ (args.c.edit.event, "event-uuid");
+  PK_ASSERT_STR_EQ (args.c.edit.media, "media-uuid");
+  PK_ASSERT_EQ (PKC_ARGFAV (args.flags), 1);
 
-  PL_ASSERT_EQ (parse (&args, 7, argvNofav), PL_EOK);
-  PL_ASSERT_EQ (PL_ARGFAV (args.flags), 0);
+  PK_ASSERT_EQ (pkcArgParse (&args, 7, argvNofav), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGFAV (args.flags), 0);
 
-  PL_ASSERT_EQ (parse (&args, 7, argvLongFav), PL_EOK);
-  PL_ASSERT_EQ (PL_ARGFAV (args.flags), 1);
+  PK_ASSERT_EQ (pkcArgParse (&args, 7, argvLongFav), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGFAV (args.flags), 1);
 
-  PL_ASSERT_EQ (parse (&args, 7, argvLongNofav), PL_EOK);
-  PL_ASSERT_EQ (PL_ARGFAV (args.flags), 0);
+  PK_ASSERT_EQ (pkcArgParse (&args, 7, argvLongNofav), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGFAV (args.flags), 0);
 
   // Missing event, media, or field must be rejected.
-  PL_ASSERT_EQ (parse (&args, 5, argvNoEvent), PL_EARG);
-  PL_ASSERT_EQ (parse (&args, 5, argvNoMedia), PL_EARG);
-  PL_ASSERT_EQ (parse (&args, 6, argvNoField), PL_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 5, argvNoEvent), PK_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 5, argvNoMedia), PK_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 6, argvNoField), PK_EARG);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - approve
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testApprove (void)
 {
-  PLArg args;
-  PLChar *argv[] = { "p6a", "approve", "-e", "event-uuid",
-                     "-m",  "media-uuid" };
-  PLChar *argvLong[] = { "p6a",    "approve", "--event", "event-uuid",
-                         "--media", "media-uuid" };
-  PLChar *argvRevoke[]
+  PKCArg args;
+  PKChar *argv[]
+      = { "p6a", "approve", "-e", "event-uuid", "-m", "media-uuid" };
+  PKChar *argvLong[]
+      = { "p6a", "approve", "--event", "event-uuid", "--media", "media-uuid" };
+  PKChar *argvRevoke[]
       = { "p6a", "approve", "-e", "event-uuid", "-m", "media-uuid", "-r" };
-  PLChar *argvRevokeLong[] = { "p6a", "approve",    "-e",      "event-uuid",
+  PKChar *argvRevokeLong[] = { "p6a", "approve",    "-e",      "event-uuid",
                                "-m",  "media-uuid", "--revoke" };
-  PLChar *argvNoEvent[] = { "p6a", "approve", "-m", "media-uuid" };
-  PLChar *argvNoMedia[] = { "p6a", "approve", "-e", "event-uuid" };
+  PKChar *argvNoEvent[] = { "p6a", "approve", "-m", "media-uuid" };
+  PKChar *argvNoMedia[] = { "p6a", "approve", "-e", "event-uuid" };
 
-  PL_ASSERT_EQ (parse (&args, 6, argv), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CAPPROVE);
-  PL_ASSERT_STR_EQ (args.c.approve.event, "event-uuid");
-  PL_ASSERT_STR_EQ (args.c.approve.media, "media-uuid");
-  PL_ASSERT_EQ (args.flags & PL_FREVOKE, (PLDword)0);
+  PK_ASSERT_EQ (pkcArgParse (&args, 6, argv), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CAPPROVE);
+  PK_ASSERT_STR_EQ (args.c.approve.event, "event-uuid");
+  PK_ASSERT_STR_EQ (args.c.approve.media, "media-uuid");
+  PK_ASSERT_EQ (args.flags & PKC_FREVOKE, (PKDword)0);
 
   // -r / --revoke revokes approval instead.
-  PL_ASSERT_EQ (parse (&args, 7, argvRevoke), PL_EOK);
-  PL_ASSERT_EQ (args.cmd, PL_CAPPROVE);
-  PL_ASSERT (args.flags & PL_FREVOKE);
+  PK_ASSERT_EQ (pkcArgParse (&args, 7, argvRevoke), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CAPPROVE);
+  PK_ASSERT (args.flags & PKC_FREVOKE);
 
-  PL_ASSERT_EQ (parse (&args, 7, argvRevokeLong), PL_EOK);
-  PL_ASSERT (args.flags & PL_FREVOKE);
+  PK_ASSERT_EQ (pkcArgParse (&args, 7, argvRevokeLong), PK_OK);
+  PK_ASSERT (args.flags & PKC_FREVOKE);
 
-  PL_ASSERT_EQ (parse (&args, 6, argvLong), PL_EOK);
-  PL_ASSERT_STR_EQ (args.c.approve.event, "event-uuid");
-  PL_ASSERT_STR_EQ (args.c.approve.media, "media-uuid");
+  PK_ASSERT_EQ (pkcArgParse (&args, 6, argvLong), PK_OK);
+  PK_ASSERT_STR_EQ (args.c.approve.event, "event-uuid");
+  PK_ASSERT_STR_EQ (args.c.approve.media, "media-uuid");
 
   // Missing event or media must be rejected.
-  PL_ASSERT_EQ (parse (&args, 4, argvNoEvent), PL_EARG);
-  PL_ASSERT_EQ (parse (&args, 4, argvNoMedia), PL_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argvNoEvent), PK_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argvNoMedia), PK_EARG);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - flags cleared between calls
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testFlagsCleared (void)
 {
   // Flags from one parse must not bleed into the next.
-  PLArg args;
-  PLChar *argvOwn[] = { "p6a", "list", "--owner-only" };
-  PLChar *argvBare[] = { "p6a", "list" };
+  PKCArg args;
+  PKChar *argvOwn[] = { "p6a", "list", "--owner-only" };
+  PKChar *argvBare[] = { "p6a", "list" };
 
-  PL_ASSERT_EQ (parse (&args, 3, argvOwn), PL_EOK);
-  PL_ASSERT (args.flags & PL_FOWN);
+  PK_ASSERT_EQ (pkcArgParse (&args, 3, argvOwn), PK_OK);
+  PK_ASSERT (args.flags & PKC_FOWN);
 
-  PL_ASSERT_EQ (parse (&args, 2, argvBare), PL_EOK);
-  PL_ASSERT_EQ (args.flags & PL_FOWN, (PLDword)0);
+  PK_ASSERT_EQ (pkcArgParse (&args, 2, argvBare), PK_OK);
+  PK_ASSERT_EQ (args.flags & PKC_FOWN, (PKDword)0);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -625,36 +681,39 @@ testFlagsCleared (void)
 int
 main (void)
 {
-  PL_SUITE ("arg - error cases");
-  PL_RUN (testNoArgs);
-  PL_RUN (testUnknownCommand);
+  PK_SUITE ("arg - error cases");
+  PK_RUN (testNoArgs);
+  PK_RUN (testUnknownCommand);
 
-  PL_SUITE ("arg - meta commands");
-  PL_RUN (testHelp);
-  PL_RUN (testVersion);
+  PK_SUITE ("arg - meta commands");
+  PK_RUN (testHelp);
+  PK_RUN (testVersion);
 
-  PL_SUITE ("arg - auth commands");
-  PL_RUN (testLoginBare);
-  PL_RUN (testLoginImport);
-  PL_RUN (testLoginDir);
-  PL_RUN (testLogout);
+  PK_SUITE ("arg - auth commands");
+  PK_RUN (testLoginBare);
+  PK_RUN (testLoginImport);
+  PK_RUN (testLoginDir);
+  PK_RUN (testLoginFormat);
+  PK_RUN (testLogout);
+  PK_RUN (testLogoutDir);
+  PK_RUN (testStatus);
 
-  PL_SUITE ("arg - data commands");
-  PL_RUN (testSync);
-  PL_RUN (testList);
-  PL_RUN (testCreate);
-  PL_RUN (testUpdate);
-  PL_RUN (testQr);
-  PL_RUN (testCard);
-  PL_RUN (testLink);
-  PL_RUN (testMedia);
-  PL_RUN (testDownload);
-  PL_RUN (testUpload);
-  PL_RUN (testEdit);
-  PL_RUN (testApprove);
+  PK_SUITE ("arg - data commands");
+  PK_RUN (testSync);
+  PK_RUN (testList);
+  PK_RUN (testCreate);
+  PK_RUN (testUpdate);
+  PK_RUN (testQr);
+  PK_RUN (testCard);
+  PK_RUN (testLink);
+  PK_RUN (testMedia);
+  PK_RUN (testDownload);
+  PK_RUN (testUpload);
+  PK_RUN (testEdit);
+  PK_RUN (testApprove);
 
-  PL_SUITE ("arg - state isolation");
-  PL_RUN (testFlagsCleared);
+  PK_SUITE ("arg - state isolation");
+  PK_RUN (testFlagsCleared);
 
-  PL_SUMMARY ();
+  PK_SUMMARY ();
 }

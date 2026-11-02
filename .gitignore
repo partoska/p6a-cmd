@@ -36,6 +36,9 @@ npm/*/bin/p6a.exe
 
 # CMake artifact files
 build/
+
+# Pinned dependencies fetched by .github/scripts/fetch-bikini.sh
+deps/
 build-*/
 _CPack_Packages/
 *.pkg

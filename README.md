@@ -1,13 +1,19 @@
+<p align="center">
+  <img src="img/logo.svg" width="160" alt="p6a logo">
+</p>
+
 # Partoska Command-Line Interface (`p6a`)
 
 Manage and sync your event photos from [Partoska](https://www.partoska.com) — right from your terminal.
 
-[![Version](https://img.shields.io/badge/version-1.14.0-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v1.14.0) [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt) [![Build](https://github.com/partoska/p6a-cmd/actions/workflows/build.yml/badge.svg)](https://github.com/partoska/p6a-cmd/actions/workflows/build.yml)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v2.0.0) [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt) [![Build](https://github.com/partoska/p6a-cmd/actions/workflows/build.yml/badge.svg)](https://github.com/partoska/p6a-cmd/actions/workflows/build.yml)
 [![npm](https://img.shields.io/npm/v/@partoska/p6a.svg)](https://www.npmjs.com/package/@partoska/p6a)
 
 ## What is this?
 
 `p6a` is a lightweight command-line tool that helps you download and organize your event photos from Partoska. It's perfect for backing up your memories or working with your photos offline.
+
+It is built on `libpartoska`, a small C library for the Partoska API that you can use in your own programs too; see [Library](#library).
 
 **Key features:**
 
@@ -19,6 +25,7 @@ Manage and sync your event photos from [Partoska](https://www.partoska.com) — 
 - Get or download invite links and QR codes for sharing events.
 - Works on macOS, Linux, and Windows.
 - [Agent skill](#agent-skill) included for use with AI assistants.
+- [C library](#library) (`libpartoska`) for your own programs.
 
 ## Quick Start
 
@@ -50,7 +57,7 @@ npx @partoska/p6a login
 npx @partoska/p6a sync -t ~/my-photos
 ```
 
-**From source** (requires CMake 3.20+, GCC or Clang, and libcurl):
+**From source** (requires CMake 3.20+, GCC or Clang, libcurl, and [Bikini](https://github.com/partoska/bikini) 2.x):
 
 ```bash
 # Clone the repository.
@@ -61,7 +68,7 @@ cd p6a-cmd
 ./build.sh
 sudo ./install.sh
 
-# The binary will be at: build/src/p6a
+# The binary will be at: build/src/cli/p6a
 ```
 
 ### 2. Login
@@ -97,6 +104,7 @@ my-photos/
 | ---------- | ------------------------------------------ |
 | `login`    | Authenticate with Partoska                 |
 | `logout`   | Remove saved credentials                   |
+| `status`   | Tell whether you are logged in             |
 | `sync`     | Download and organize event photos         |
 | `list`     | List events                                |
 | `create`   | Create a new event                         |
@@ -129,6 +137,13 @@ login. The code expires after 15 minutes.
 
 - `-D, --dir <path>` - Use a custom config directory (default: `~/.p6a`).
 - `-i, --import <file>` - Import config from an INI file.
+- `-1` - Print the login URL only (same as `-F one`).
+- `-F, --format <fmt>` - Output format: `plain` (default), `json`
+  (`{"uri":"…","code":"BCDF-GHJK","expires":900}`), `csv` (a
+  `uri,code,expires` header and one row), `one` (the URL only). Other formats
+  than `plain` print only the link and code, as soon as they are known, for a
+  script or an agent to pass on; the exit code tells whether the login
+  succeeded. The URL already carries the code.
 
 **Examples:**
 
@@ -141,6 +156,42 @@ p6a login --dir /data/p6a-config
 
 # Import configuration from file.
 p6a login --import /path/to/config.ini
+
+# Machine-readable link and code.
+p6a login -F json
+```
+
+### `status` - Check the Login
+
+Tell whether you are logged in: prints `Logged in` and exits with 0, or prints
+`Not logged in` and exits with 1, so scripts can test it. The exit code is the
+same in every output format. It only looks at the saved login and does not
+contact Partoska; a login that Partoska no longer accepts shows up on the next
+command.
+
+```bash
+p6a status
+```
+
+**Options:**
+
+- `-D, --dir <path>` - Custom config directory (default: `~/.p6a`).
+- `-1` - Print `true` or `false` only (same as `-F one`).
+- `-F, --format <fmt>` - Output format: `plain` (default), `json`
+  (`{"login":true}`), `csv` (a `login` header, then `true` or `false`), `one`
+  (`true` or `false`).
+
+**Examples:**
+
+```bash
+# Log in only when needed.
+p6a status >/dev/null || p6a login
+
+# Machine-readable answer.
+p6a status -F json | jq .login
+
+# Check a custom config location.
+p6a status --dir /data/p6a-config
 ```
 
 ### `sync` - Download Your Photos
@@ -700,11 +751,11 @@ p6a sync --dir /custom/path -t ~/photos
 
 ### What's stored in the config?
 
-- **OAuth tokens** - Your login credentials (access & refresh tokens).
-- **API endpoints** - Partoska API URLs.
-- **OAuth settings** - Client ID, scopes, redirect URLs.
+- **OAuth tokens** - Your login credentials (access & refresh tokens) and when the access token expires.
+- **API endpoint** - The Partoska API URL.
+- **OAuth settings** - Client ID, scope, and the device and token endpoints.
 
-You can view your config file at `~/.p6a/p6a.ini`.
+You can view your config file at `~/.p6a/p6a.ini`. It holds your login, so it is readable only by you.
 
 ## Technical Details
 
@@ -714,15 +765,17 @@ You can view your config file at `~/.p6a/p6a.ini`.
   - CMake 3.20 or later
   - C compiler (GCC or Clang)
   - libcurl
+  - [Bikini](https://github.com/partoska/bikini) 2.x, the INI library (linked statically)
 - **Runtime dependencies:**
   - libcurl (no deps on Windows)
 
 ### How It Works
 
-1. **Authentication:** Uses OAuth 2.0 device authorization flow with PKCE for security.
-2. **Token Management:** Automatically refreshes expired tokens.
+1. **Authentication:** Uses the OAuth 2.0 device authorization grant (RFC 8628): you approve the login in a browser, on this or any other device.
+2. **Token Management:** Automatically renews the login when the access token has expired or is about to, and saves it.
 3. **Syncing:** Fetches events via REST API, downloads media files, and tracks what's been synced.
 4. **Event Tracking:** Uses IDs to identify events, even if names change.
+5. **Interrupting:** Ctrl-C stops a running command cleanly; a file being downloaded is removed, finished files stay.
 
 ### Supported Media Types
 
@@ -742,18 +795,21 @@ This ensures the sync is idempotent and handles event renames gracefully.
 
 ## Troubleshooting
 
-### "Failed to login" error
+### "Login failed" error
 
-Make sure you:
+The message says why, e.g. the login was denied in the browser or the code expired. Make sure you:
 
 1. Entered the device code correctly.
 2. Authorized the app in your browser.
 3. Have an active internet connection.
 
-### "Network error" during sync
+### "Request failed" errors
+
+Errors name what failed and why, e.g. `error: Failed to fetch events: Request failed: Couldn't resolve host name`.
 
 - Check your internet connection.
-- Verify your login is still valid: `p6a logout` then `p6a login`.
+- `Request failed with HTTP ...` is an answer from Partoska; HTTP 403 or 404 usually means a wrong event or media ID.
+- Errors ending in `please (re-)login with 'p6a login'` mean the login is missing or was refused: run `p6a logout` then `p6a login`.
 
 ### Files aren't downloading
 
@@ -771,6 +827,94 @@ p6a sync --dir /custom/path -t ~/photos
 p6a logout --dir /custom/path
 ```
 
+## Library
+
+The tool is a thin layer over `libpartoska`, a small C99 library for the Partoska API: events, media, invite links, QR codes, share cards, downloads and chunked uploads, with the OAuth device login and renewal of the login built in. Its API is in [`src/lib/inc/partoska.h`](src/lib/inc/partoska.h).
+
+```c
+#include <partoska.h>
+#include <stdio.h>
+
+static PKVoid
+prompt (PKVoid *user, const PKChar *uri, const PKChar *code, PKLong expires)
+{
+  PK_UNUSED (user);
+  printf ("Open %s and check the code %s (%ld s left)\n", uri, code, expires);
+  fflush (stdout);
+}
+
+int
+main (void)
+{
+  if (pkGlobalInit () != PK_OK)
+    {
+      fprintf (stderr, "Failed to initialize libcurl\n");
+      return 1;
+    }
+
+  PKClient *client = pkInit ();
+  if (!client)
+    {
+      fprintf (stderr, "Out of memory\n");
+      pkGlobalCleanup ();
+      return 1;
+    }
+
+  // The working directory of the p6a tool, ~/.p6a: log in once.
+  PKStatus status = pkOpen (client, NULL);
+  if (status == PK_OK && !pkLoginValid (client))
+    {
+      status = pkLogin (client, prompt, NULL);
+    }
+
+  // A failed call leaves the list empty, with nothing to release.
+  PKEventList events;
+  if (status == PK_OK)
+    {
+      status = pkEventList (client, NULL, &events);
+    }
+  if (status == PK_OK)
+    {
+      for (PKSize i = 0; i < events.count; ++i)
+        {
+          printf ("%s  %s\n", events.events[i].id, events.events[i].name);
+        }
+      pkEventListFree (&events);
+    }
+  else
+    {
+      fprintf (stderr, "%s\n", pkError (client)->message);
+    }
+
+  pkDestroy (client);
+  pkGlobalCleanup ();
+
+  return status == PK_OK ? 0 : 1;
+}
+```
+
+- **Client.** Every call runs within a `PKClient`: its working directory and configuration (`pkOpen`), the login (`pkLogin`, `pkImport`, `pkLogout`, `pkLoginValid`), a throttle that paces the requests, the last error, a log handler and stop requests. The library keeps no global state and never prints. Use a client from one thread at a time.
+- **Errors.** Calls return a `PKStatus` (`PK_ENET` transport, `PK_EHTTP` unexpected HTTP status, `PK_EAUTH` login missing or refused, `PK_EDATA` malformed data, `PK_EFS` files, `PK_ESTOPPED`, …); `pkError (client)` holds the code (errno, libcurl code or HTTP status) and a message.
+- **Logging.** `pkLogSetHandler` and `pkLogSetLevel` route the messages of a client; without a handler it stays silent.
+- **Stopping.** `pkStop (client)` is async-signal-safe: call it from a `SIGINT` or `SIGTERM` handler, and requests in progress and waits end with `PK_ESTOPPED`.
+- **Calls.** `pkEventList`, `pkEventCreate`, `pkEventUpdate`, `pkEventLink`, `pkEventQr`, `pkEventCard`, `pkMediaList`, `pkMediaDownload`, `pkMediaUpdate`, `pkMediaApprove`, `pkMediaUpload`, and the steps of an upload session (`pkUploadStart`, `pkUploadChunk`, `pkUploadComplete`, `pkUploadCancel`). An expired access token is renewed on the way, and downloads that fail leave no partial file.
+- **Process.** Call `pkGlobalInit` once before the first client (it initializes libcurl) and `pkGlobalCleanup` after the last.
+
+Every package of `p6a` (and `make install` or `cmake --install`) installs the static library `libpartoska.a`, its headers `partoska.h` and `pktypes.h`, and `partoska.pc`. Link with pkg-config:
+
+```bash
+cc app.c $(pkg-config --cflags --libs partoska) -o app
+```
+
+The library depends on libcurl and [Bikini](https://github.com/partoska/bikini) 2.x, which `partoska.pc` names, so pkg-config has to find them too: install Bikini from its release packages (the `.deb` and `.rpm` of `p6a` suggest `bikini`) and the libcurl development files. With a static libcurl, as on Windows, add `--static`.
+
+Without installing, add this repository to a CMake project and link the `partoska` target:
+
+```cmake
+add_subdirectory(path/to/p6a-cmd p6a)
+target_link_libraries(app PRIVATE partoska)
+```
+
 ## Building from Source
 
 ### Standard Build and Install
@@ -783,7 +927,9 @@ p6a logout --dir /custom/path
 ./install.sh
 ```
 
-The binary will be created at `build/src/p6a` and installed to your system (typically `/usr/local/bin/p6a`).
+The binary will be created at `build/src/cli/p6a` and the library at `build/src/lib/libpartoska.a`. Installing puts the binary, the library, its headers and `partoska.pc` under the prefix (typically `/usr/local/bin/p6a`, `/usr/local/lib`, `/usr/local/include`). The library is static; `-DBUILD_SHARED_LIBS=ON` builds a shared one instead (`libpartoska.so.2` / `libpartoska.2.dylib`), which the installed `p6a` finds through its RPATH.
+
+Bikini 2.x is found through pkg-config or the default paths. To use an unpacked release archive instead, fetch the pinned one with `.github/scripts/fetch-bikini.sh <platform> deps/bikini` and pass `-DCMAKE_PREFIX_PATH=$PWD/deps/bikini` to CMake, or `BIKINI_PREFIX=$PWD/deps/bikini` to `make`.
 
 ### Installation Options
 
@@ -837,15 +983,16 @@ For advanced users:
 
 ```bash
 # Configure and build
-mkdir build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release ..
-make
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
 
 # Install
-cmake --install . --strip
+cmake --install build --strip
 ```
 
 Available sanitizers: `address`, `undefined`, `float-cast-overflow` (plus `integer` on Clang).
+
+Without CMake, `make` builds the same library and tool (`make test` runs the tests, `make help` lists the options).
 
 ## Contributing
 

@@ -1,5 +1,5 @@
 /*
- * Command Line Interface for Partoska.com media sharing service.
+ * Partoska Library - Client library for Partoska.com media sharing service.
  * Copyright (C) 2026 Fabrika Charvat s.r.o. All rights reserved.
  * Developed by Partoska Laboratory team, <https://lab.partoska.com>
  *
@@ -30,24 +30,33 @@
  * Includes
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+#include "client.h"
 #include "config.h"
+#include "pktypes.h"
+#include "plat.h"
 #include "test_runner.h"
-#include "types.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Variables
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+/* Records the failures of the calls under test. */
+static PKClient *client;
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Helpers
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 /* Create an empty temp file and return its path in buf. */
-static void
-makeTmpfile (PLChar *buf, PLSize size)
+static PKVoid
+makeTmpfile (PKChar *buf, PKSize size)
 {
 #ifdef _WIN32
-  PLChar *tmp = _tempnam (NULL, "p6a");
+  PKChar *tmp = _tempnam (NULL, "p6a");
   if (tmp)
     {
       strncpy (buf, tmp, size - 1);
@@ -60,13 +69,13 @@ makeTmpfile (PLChar *buf, PLSize size)
       fclose (f);
     }
 #else
-  const PLChar *tmp = getenv ("TMPDIR");
+  const PKChar *tmp = getenv ("TMPDIR");
   if (tmp == NULL || tmp[0] == '\0')
     {
       tmp = "/tmp";
     }
   snprintf (buf, size, "%s/p6a_cfg_test_XXXXXX", tmp);
-  PLInt fd = mkstemp (buf);
+  PKInt fd = mkstemp (buf);
   if (fd >= 0)
     {
       close (fd);
@@ -74,15 +83,15 @@ makeTmpfile (PLChar *buf, PLSize size)
 #endif
 }
 
-static void
-rmFile (const PLChar *path)
+static PKVoid
+rmFile (const PKChar *path)
 {
   unlink (path);
 }
 
 /* Write text to a fresh temp file and return its path in buf. */
-static void
-writeTmpfile (PLChar *buf, PLSize size, const PLChar *text)
+static PKVoid
+writeTmpfile (PKChar *buf, PKSize size, const PKChar *text)
 {
   makeTmpfile (buf, size);
   FILE *f = fopen (buf, "wb");
@@ -93,271 +102,288 @@ writeTmpfile (PLChar *buf, PLSize size, const PLChar *text)
     }
 }
 
+/* Read a whole text file into buf, without carriage returns. */
+static PKVoid
+readFile (const PKChar *path, PKChar *buf, PKSize size)
+{
+  PKSize len = 0;
+  FILE *f = fopen (path, "rb");
+  if (f)
+    {
+      PKInt c;
+      while (len + 1 < size && (c = fgetc (f)) != EOF)
+        {
+          if (c != '\r')
+            {
+              buf[len++] = (PKChar)c;
+            }
+        }
+      fclose (f);
+    }
+  buf[len] = '\0';
+}
+
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - Init / Destroy / Check
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testInitNotNull (void)
 {
-  PLCfg *cfg = plCfgInit ();
-  PL_ASSERT (cfg != NULL);
-  PL_ASSERT (cfg->glob != NULL);
-  PL_ASSERT (cfg->oauth != NULL);
-  PL_ASSERT (cfg->login != NULL);
-  plCfgDestroy (cfg);
+  PKCfg *cfg = pkCfgInit ();
+  PK_ASSERT (cfg != NULL);
+  PK_ASSERT (cfg->glob != NULL);
+  PK_ASSERT (cfg->oauth != NULL);
+  PK_ASSERT (cfg->login != NULL);
+  pkCfgDestroy (cfg);
 }
 
-static void
+static PKVoid
 testInitDefaultsPopulated (void)
 {
   // After init, global and OAuth fields are filled with built-in defaults.
-  PLCfg *cfg = plCfgInit ();
+  PKCfg *cfg = pkCfgInit ();
 
-  PL_ASSERT (cfg->glob->version != NULL);
-  PL_ASSERT (cfg->glob->endpoint != NULL);
+  PK_ASSERT (cfg->glob->version != NULL);
+  PK_ASSERT (cfg->glob->endpoint != NULL);
 
-  PL_ASSERT (cfg->oauth->client != NULL);
-  PL_ASSERT (cfg->oauth->redirect != NULL);
-  PL_ASSERT (cfg->oauth->authorize != NULL);
-  PL_ASSERT (cfg->oauth->device != NULL);
-  PL_ASSERT (cfg->oauth->token != NULL);
-  PL_ASSERT (cfg->oauth->scope != NULL);
+  PK_ASSERT (cfg->oauth->client != NULL);
+  PK_ASSERT (cfg->oauth->device != NULL);
+  PK_ASSERT (cfg->oauth->token != NULL);
+  PK_ASSERT (cfg->oauth->scope != NULL);
 
-  plCfgDestroy (cfg);
+  pkCfgDestroy (cfg);
 }
 
-static void
+static PKVoid
 testInitLoginEmpty (void)
 {
   // Login fields are NULL / zero before any credentials are stored.
-  PLCfg *cfg = plCfgInit ();
-  PL_ASSERT (cfg->login->access == NULL);
-  PL_ASSERT (cfg->login->refresh == NULL);
-  PL_ASSERT_EQ (cfg->login->expires, (PLTime)0);
-  plCfgDestroy (cfg);
+  PKCfg *cfg = pkCfgInit ();
+  PK_ASSERT (cfg->login->access == NULL);
+  PK_ASSERT (cfg->login->refresh == NULL);
+  PK_ASSERT_EQ (cfg->login->expires, (PKTime)0);
+  pkCfgDestroy (cfg);
 }
 
-static void
+static PKVoid
 testCheckFreshCfg (void)
 {
   // A freshly initialized config passes the completeness check.
-  PLCfg *cfg = plCfgInit ();
-  PL_ASSERT_EQ (plCfgCheck (cfg), PL_TRUE);
-  plCfgDestroy (cfg);
+  PKCfg *cfg = pkCfgInit ();
+  PK_ASSERT_EQ (pkCfgCheck (cfg), PK_TRUE);
+  pkCfgDestroy (cfg);
 }
 
-static void
+static PKVoid
 testCheckNull (void)
 {
-  PL_ASSERT_EQ (plCfgCheck (NULL), PL_FALSE);
+  PK_ASSERT_EQ (pkCfgCheck (NULL), PK_FALSE);
 }
 
-static void
+static PKVoid
 testDestroyNull (void)
 {
-  // plCfgDestroy(NULL) must not crash.
-  plCfgDestroy (NULL);
+  // pkCfgDestroy(NULL) must not crash.
+  pkCfgDestroy (NULL);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - SetLogin / UnsetLogin
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testSetLogin (void)
 {
-  PLCfg *cfg = plCfgInit ();
+  PKCfg *cfg = pkCfgInit ();
 
-  PL_ASSERT_EQ (plCfgSetLogin (cfg, "access_tok", "refresh_tok", 9999999),
-                PL_EOK);
-  PL_ASSERT_STR_EQ (cfg->login->access, "access_tok");
-  PL_ASSERT_STR_EQ (cfg->login->refresh, "refresh_tok");
-  PL_ASSERT_EQ (cfg->login->expires, (PLTime)9999999);
+  PK_ASSERT_EQ (pkCfgSetLogin (cfg, "access_tok", "refresh_tok", 9999999),
+                PK_OK);
+  PK_ASSERT_STR_EQ (cfg->login->access, "access_tok");
+  PK_ASSERT_STR_EQ (cfg->login->refresh, "refresh_tok");
+  PK_ASSERT_EQ (cfg->login->expires, (PKTime)9999999);
 
-  plCfgDestroy (cfg);
+  pkCfgDestroy (cfg);
 }
 
-static void
+static PKVoid
 testSetLoginReplacesExisting (void)
 {
   // Calling SetLogin twice replaces the previous tokens.
-  PLCfg *cfg = plCfgInit ();
+  PKCfg *cfg = pkCfgInit ();
 
-  PL_ASSERT_EQ (plCfgSetLogin (cfg, "old_access", "old_refresh", 1111),
-                PL_EOK);
-  PL_ASSERT_EQ (plCfgSetLogin (cfg, "new_access", "new_refresh", 2222),
-                PL_EOK);
+  PK_ASSERT_EQ (pkCfgSetLogin (cfg, "old_access", "old_refresh", 1111), PK_OK);
+  PK_ASSERT_EQ (pkCfgSetLogin (cfg, "new_access", "new_refresh", 2222), PK_OK);
 
-  PL_ASSERT_STR_EQ (cfg->login->access, "new_access");
-  PL_ASSERT_STR_EQ (cfg->login->refresh, "new_refresh");
-  PL_ASSERT_EQ (cfg->login->expires, (PLTime)2222);
+  PK_ASSERT_STR_EQ (cfg->login->access, "new_access");
+  PK_ASSERT_STR_EQ (cfg->login->refresh, "new_refresh");
+  PK_ASSERT_EQ (cfg->login->expires, (PKTime)2222);
 
-  plCfgDestroy (cfg);
+  pkCfgDestroy (cfg);
 }
 
-static void
+static PKVoid
 testSetLoginNullAccess (void)
 {
-  PLCfg *cfg = plCfgInit ();
-  PL_ASSERT_EQ (plCfgSetLogin (cfg, NULL, "refresh_tok", 0), PL_EARG);
-  plCfgDestroy (cfg);
+  PKCfg *cfg = pkCfgInit ();
+  PK_ASSERT_EQ (pkCfgSetLogin (cfg, NULL, "refresh_tok", 0), PK_EARG);
+  pkCfgDestroy (cfg);
 }
 
-static void
+static PKVoid
 testSetLoginNullRefresh (void)
 {
-  PLCfg *cfg = plCfgInit ();
-  PL_ASSERT_EQ (plCfgSetLogin (cfg, "access_tok", NULL, 0), PL_EARG);
-  plCfgDestroy (cfg);
+  PKCfg *cfg = pkCfgInit ();
+  PK_ASSERT_EQ (pkCfgSetLogin (cfg, "access_tok", NULL, 0), PK_EARG);
+  pkCfgDestroy (cfg);
 }
 
-static void
+static PKVoid
 testUnsetLogin (void)
 {
-  PLCfg *cfg = plCfgInit ();
+  PKCfg *cfg = pkCfgInit ();
 
-  PL_ASSERT_EQ (plCfgSetLogin (cfg, "access_tok", "refresh_tok", 9999),
-                PL_EOK);
-  PL_ASSERT_EQ (plCfgUnsetLogin (cfg), PL_EOK);
+  PK_ASSERT_EQ (pkCfgSetLogin (cfg, "access_tok", "refresh_tok", 9999), PK_OK);
+  pkCfgUnsetLogin (cfg);
 
-  PL_ASSERT (cfg->login->access == NULL);
-  PL_ASSERT (cfg->login->refresh == NULL);
-  PL_ASSERT_EQ (cfg->login->expires, (PLTime)0);
+  PK_ASSERT (cfg->login->access == NULL);
+  PK_ASSERT (cfg->login->refresh == NULL);
+  PK_ASSERT_EQ (cfg->login->expires, (PKTime)0);
 
-  plCfgDestroy (cfg);
+  pkCfgDestroy (cfg);
 }
 
-static void
+static PKVoid
 testUnsetLoginIdempotent (void)
 {
   // Calling UnsetLogin on a config with no login set must not crash.
-  PLCfg *cfg = plCfgInit ();
-  PL_ASSERT_EQ (plCfgUnsetLogin (cfg), PL_EOK);
-  PL_ASSERT_EQ (plCfgUnsetLogin (cfg), PL_EOK);
-  plCfgDestroy (cfg);
+  PKCfg *cfg = pkCfgInit ();
+  pkCfgUnsetLogin (cfg);
+  pkCfgUnsetLogin (cfg);
+  pkCfgDestroy (cfg);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - Load
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testLoadNullFile (void)
 {
-  PLCfg *cfg = plCfgInit ();
-  PL_ASSERT_EQ (plCfgLoad (cfg, NULL), PL_EARG);
-  plCfgDestroy (cfg);
+  PKCfg *cfg = pkCfgInit ();
+  PK_ASSERT_EQ (pkCfgLoad (client, cfg, NULL), PK_EARG);
+  pkCfgDestroy (cfg);
 }
 
-static void
+static PKVoid
 testLoadNonexistentFile (void)
 {
-  PLCfg *cfg = plCfgInit ();
-  PL_ASSERT_EQ (plCfgLoad (cfg, "/tmp/p6a_no_such_config_xyz987654.ini"),
-                PL_EFS);
-  plCfgDestroy (cfg);
+  PKCfg *cfg = pkCfgInit ();
+  PK_ASSERT_EQ (
+      pkCfgLoad (client, cfg, "/tmp/p6a_no_such_config_xyz987654.ini"),
+      PK_EFS);
+  pkCfgDestroy (cfg);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - Save / Load round-trip
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testRoundtripWithLogin (void)
 {
   // Save a config with tokens; load it into a fresh config and verify.
-  PLChar path[256];
+  PKChar path[256];
   makeTmpfile (path, sizeof (path));
 
-  PLCfg *cfg = plCfgInit ();
-  PL_ASSERT_EQ (plCfgSetLogin (cfg, "my_access", "my_refresh", 1234567890),
-                PL_EOK);
-  PL_ASSERT_EQ (plCfgSave (cfg, path), PL_EOK);
-  plCfgDestroy (cfg);
+  PKCfg *cfg = pkCfgInit ();
+  PK_ASSERT_EQ (pkCfgSetLogin (cfg, "my_access", "my_refresh", 1234567890),
+                PK_OK);
+  PK_ASSERT_EQ (pkCfgSave (client, cfg, path), PK_OK);
+  pkCfgDestroy (cfg);
 
-  PLCfg *loaded = plCfgInit ();
-  PL_ASSERT_EQ (plCfgLoad (loaded, path), PL_EOK);
+  PKCfg *loaded = pkCfgInit ();
+  PK_ASSERT_EQ (pkCfgLoad (client, loaded, path), PK_OK);
 
-  PL_ASSERT_STR_EQ (loaded->login->access, "my_access");
-  PL_ASSERT_STR_EQ (loaded->login->refresh, "my_refresh");
-  PL_ASSERT_EQ (loaded->login->expires, (PLTime)1234567890);
+  PK_ASSERT_STR_EQ (loaded->login->access, "my_access");
+  PK_ASSERT_STR_EQ (loaded->login->refresh, "my_refresh");
+  PK_ASSERT_EQ (loaded->login->expires, (PKTime)1234567890);
 
-  plCfgDestroy (loaded);
+  pkCfgDestroy (loaded);
   rmFile (path);
 }
 
-static void
+static PKVoid
 testRoundtripPreservesGlob (void)
 {
   // Global fields (version, endpoint) survive a save/load cycle.
-  PLChar path[256];
+  PKChar path[256];
   makeTmpfile (path, sizeof (path));
 
-  PLCfg *cfg = plCfgInit ();
-  PLChar savedVer[64];
-  PLChar savedEp[128];
+  PKCfg *cfg = pkCfgInit ();
+  PKChar savedVer[64];
+  PKChar savedEp[128];
   strncpy (savedVer, cfg->glob->version, sizeof (savedVer) - 1);
   savedVer[sizeof (savedVer) - 1] = '\0';
   strncpy (savedEp, cfg->glob->endpoint, sizeof (savedEp) - 1);
   savedEp[sizeof (savedEp) - 1] = '\0';
 
-  PL_ASSERT_EQ (plCfgSave (cfg, path), PL_EOK);
-  plCfgDestroy (cfg);
+  PK_ASSERT_EQ (pkCfgSave (client, cfg, path), PK_OK);
+  pkCfgDestroy (cfg);
 
-  PLCfg *loaded = plCfgInit ();
-  PL_ASSERT_EQ (plCfgLoad (loaded, path), PL_EOK);
+  PKCfg *loaded = pkCfgInit ();
+  PK_ASSERT_EQ (pkCfgLoad (client, loaded, path), PK_OK);
 
-  PL_ASSERT_STR_EQ (loaded->glob->version, savedVer);
-  PL_ASSERT_STR_EQ (loaded->glob->endpoint, savedEp);
-  PL_ASSERT_EQ (plCfgCheck (loaded), PL_TRUE);
+  PK_ASSERT_STR_EQ (loaded->glob->version, savedVer);
+  PK_ASSERT_STR_EQ (loaded->glob->endpoint, savedEp);
+  PK_ASSERT_EQ (pkCfgCheck (loaded), PK_TRUE);
 
-  plCfgDestroy (loaded);
+  pkCfgDestroy (loaded);
   rmFile (path);
 }
 
-static void
+static PKVoid
 testRoundtripNoLogin (void)
 {
-  // Save with no login tokens; loaded config still passes plCfgCheck.
-  PLChar path[256];
+  // Save with no login tokens; loaded config still passes pkCfgCheck.
+  PKChar path[256];
   makeTmpfile (path, sizeof (path));
 
-  PLCfg *cfg = plCfgInit ();
-  PL_ASSERT_EQ (plCfgSave (cfg, path), PL_EOK);
-  plCfgDestroy (cfg);
+  PKCfg *cfg = pkCfgInit ();
+  PK_ASSERT_EQ (pkCfgSave (client, cfg, path), PK_OK);
+  pkCfgDestroy (cfg);
 
-  PLCfg *loaded = plCfgInit ();
-  PL_ASSERT_EQ (plCfgLoad (loaded, path), PL_EOK);
-  PL_ASSERT_EQ (plCfgCheck (loaded), PL_TRUE);
-  PL_ASSERT_EQ (loaded->login->expires, (PLTime)0);
+  PKCfg *loaded = pkCfgInit ();
+  PK_ASSERT_EQ (pkCfgLoad (client, loaded, path), PK_OK);
+  PK_ASSERT_EQ (pkCfgCheck (loaded), PK_TRUE);
+  PK_ASSERT_EQ (loaded->login->expires, (PKTime)0);
 
-  plCfgDestroy (loaded);
+  pkCfgDestroy (loaded);
   rmFile (path);
 }
 
-static void
+static PKVoid
 testRoundtripUnsetAfterSet (void)
 {
   // Set tokens, save, load, unset -> check fields are cleared.
-  PLChar path[256];
+  PKChar path[256];
   makeTmpfile (path, sizeof (path));
 
-  PLCfg *cfg = plCfgInit ();
-  PL_ASSERT_EQ (plCfgSetLogin (cfg, "tok_a", "tok_r", 555), PL_EOK);
-  PL_ASSERT_EQ (plCfgSave (cfg, path), PL_EOK);
-  plCfgDestroy (cfg);
+  PKCfg *cfg = pkCfgInit ();
+  PK_ASSERT_EQ (pkCfgSetLogin (cfg, "tok_a", "tok_r", 555), PK_OK);
+  PK_ASSERT_EQ (pkCfgSave (client, cfg, path), PK_OK);
+  pkCfgDestroy (cfg);
 
-  PLCfg *loaded = plCfgInit ();
-  PL_ASSERT_EQ (plCfgLoad (loaded, path), PL_EOK);
-  PL_ASSERT_STR_EQ (loaded->login->access, "tok_a");
+  PKCfg *loaded = pkCfgInit ();
+  PK_ASSERT_EQ (pkCfgLoad (client, loaded, path), PK_OK);
+  PK_ASSERT_STR_EQ (loaded->login->access, "tok_a");
 
-  PL_ASSERT_EQ (plCfgUnsetLogin (loaded), PL_EOK);
-  PL_ASSERT (loaded->login->access == NULL);
-  PL_ASSERT (loaded->login->refresh == NULL);
-  PL_ASSERT_EQ (loaded->login->expires, (PLTime)0);
+  pkCfgUnsetLogin (loaded);
+  PK_ASSERT (loaded->login->access == NULL);
+  PK_ASSERT (loaded->login->refresh == NULL);
+  PK_ASSERT_EQ (loaded->login->expires, (PKTime)0);
 
-  plCfgDestroy (loaded);
+  pkCfgDestroy (loaded);
   rmFile (path);
 }
 
@@ -365,46 +391,137 @@ testRoundtripUnsetAfterSet (void)
  * Tests - Device endpoint
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static void
+static PKVoid
 testDeviceRoundtrip (void)
 {
   // An explicit Device endpoint survives a save/load cycle.
-  PLChar path[256];
+  PKChar path[256];
   makeTmpfile (path, sizeof (path));
 
-  PLCfg *cfg = plCfgInit ();
-  free (cfg->oauth->device);
-  cfg->oauth->device = strdup ("https://example.com/custom/device");
-  PL_ASSERT_EQ (plCfgSave (cfg, path), PL_EOK);
-  plCfgDestroy (cfg);
+  PKCfg *cfg = pkCfgInit ();
+  const PKChar *device = "https://example.com/custom/device";
+  pkMemFree (cfg->oauth->device);
+  cfg->oauth->device = pkStrDup (device, pkStrLen (device));
+  PK_ASSERT_EQ (pkCfgSave (client, cfg, path), PK_OK);
+  pkCfgDestroy (cfg);
 
-  PLCfg *loaded = plCfgInit ();
-  PL_ASSERT_EQ (plCfgLoad (loaded, path), PL_EOK);
-  PL_ASSERT_STR_EQ (loaded->oauth->device,
+  PKCfg *loaded = pkCfgInit ();
+  PK_ASSERT_EQ (pkCfgLoad (client, loaded, path), PK_OK);
+  PK_ASSERT_STR_EQ (loaded->oauth->device,
                     "https://example.com/custom/device");
 
-  plCfgDestroy (loaded);
+  pkCfgDestroy (loaded);
   rmFile (path);
 }
 
-static void
+static PKVoid
 testDeviceDefaultWhenMissing (void)
 {
   // A config written before the device flow has no Device key and gets the
   // built-in default.
-  PLChar path[256];
+  PKChar path[256];
   writeTmpfile (path, sizeof (path),
                 "[OAuth]\n"
                 "Token=https://example.com/auth/v1/oauth/token\n");
 
-  PLCfg *def = plCfgInit ();
-  PLCfg *cfg = plCfgInit ();
-  PL_ASSERT_EQ (plCfgLoad (cfg, path), PL_EOK);
-  PL_ASSERT_STR_EQ (cfg->oauth->device, def->oauth->device);
-  PL_ASSERT_EQ (plCfgCheck (cfg), PL_TRUE);
+  PKCfg *def = pkCfgInit ();
+  PKCfg *cfg = pkCfgInit ();
+  PK_ASSERT_EQ (pkCfgLoad (client, cfg, path), PK_OK);
+  PK_ASSERT_STR_EQ (cfg->oauth->device, def->oauth->device);
+  PK_ASSERT_EQ (pkCfgCheck (cfg), PK_TRUE);
 
-  plCfgDestroy (cfg);
-  plCfgDestroy (def);
+  pkCfgDestroy (cfg);
+  pkCfgDestroy (def);
+  rmFile (path);
+}
+
+static PKVoid
+testLoadCaseInsensitive (void)
+{
+  // Section and key names match in any case.
+  PKChar path[256];
+  writeTmpfile (path, sizeof (path),
+                "[LOGIN]\naccess=a1\nREFRESH=r1\nexpires=42\n");
+
+  PKCfg *cfg = pkCfgInit ();
+  PK_ASSERT_EQ (pkCfgLoad (client, cfg, path), PK_OK);
+  PK_ASSERT_STR_EQ (cfg->login->access, "a1");
+  PK_ASSERT_STR_EQ (cfg->login->refresh, "r1");
+  PK_ASSERT_EQ (cfg->login->expires, (PKTime)42);
+
+  pkCfgDestroy (cfg);
+  rmFile (path);
+}
+
+static PKVoid
+testLoadMalformed (void)
+{
+  // A malformed file is an error, not a missing one, and changes nothing.
+  PKChar path[256];
+  writeTmpfile (path, sizeof (path), "[Login]\nAccess=a1\nAccess=a2\n");
+
+  PKCfg *cfg = pkCfgInit ();
+  PK_ASSERT_EQ (pkCfgLoad (client, cfg, path), PK_EDATA);
+  PK_ASSERT (cfg->login->access == NULL);
+
+  pkCfgDestroy (cfg);
+  rmFile (path);
+}
+
+static PKVoid
+testSaveFormat (void)
+{
+  // Header comment, then every key in a fixed order.
+  PKChar path[256];
+  makeTmpfile (path, sizeof (path));
+
+  PKCfg *cfg = pkCfgInit ();
+  PK_ASSERT_EQ (pkCfgSetLogin (cfg, "a1", "r1", 42), PK_OK);
+  PK_ASSERT_EQ (pkCfgSave (client, cfg, path), PK_OK);
+
+  PKChar expected[2048];
+  snprintf (expected, sizeof (expected),
+            "; Partoska.com Configuration File\n"
+            "; Auto-generated by p6a utility v" PK_VERSION_STRING ".\n"
+            "; Do not modify. More info at <https://www.partoska.com/p6a>\n"
+            "\n"
+            "[Global]\n"
+            "Version=" PK_VERSION_STRING "\n"
+            "Endpoint=%s\n"
+            "\n"
+            "[OAuth]\n"
+            "Client=%s\n"
+            "Device=%s\n"
+            "Token=%s\n"
+            "Scope=%s\n"
+            "\n"
+            "[Login]\n"
+            "Access=a1\n"
+            "Refresh=r1\n"
+            "Expires=42\n",
+            cfg->glob->endpoint, cfg->oauth->client, cfg->oauth->device,
+            cfg->oauth->token, cfg->oauth->scope);
+
+  PKChar text[2048];
+  readFile (path, text, sizeof (text));
+  PK_ASSERT_STR_EQ (text, expected);
+
+  pkCfgDestroy (cfg);
+  rmFile (path);
+}
+
+static PKVoid
+testSaveLineBreakRejected (void)
+{
+  // A value spanning lines would corrupt the file.
+  PKChar path[256];
+  makeTmpfile (path, sizeof (path));
+
+  PKCfg *cfg = pkCfgInit ();
+  PK_ASSERT_EQ (pkCfgSetLogin (cfg, "a1\nAccess=evil", "r1", 42), PK_OK);
+  PK_ASSERT_EQ (pkCfgSave (client, cfg, path), PK_EARG);
+
+  pkCfgDestroy (cfg);
   rmFile (path);
 }
 
@@ -415,35 +532,41 @@ testDeviceDefaultWhenMissing (void)
 int
 main (void)
 {
-  PL_SUITE ("config - init / check / destroy");
-  PL_RUN (testInitNotNull);
-  PL_RUN (testInitDefaultsPopulated);
-  PL_RUN (testInitLoginEmpty);
-  PL_RUN (testCheckFreshCfg);
-  PL_RUN (testCheckNull);
-  PL_RUN (testDestroyNull);
+  client = pkInit ();
+  PK_SUITE ("config - init / check / destroy");
+  PK_RUN (testInitNotNull);
+  PK_RUN (testInitDefaultsPopulated);
+  PK_RUN (testInitLoginEmpty);
+  PK_RUN (testCheckFreshCfg);
+  PK_RUN (testCheckNull);
+  PK_RUN (testDestroyNull);
 
-  PL_SUITE ("config - SetLogin / UnsetLogin");
-  PL_RUN (testSetLogin);
-  PL_RUN (testSetLoginReplacesExisting);
-  PL_RUN (testSetLoginNullAccess);
-  PL_RUN (testSetLoginNullRefresh);
-  PL_RUN (testUnsetLogin);
-  PL_RUN (testUnsetLoginIdempotent);
+  PK_SUITE ("config - SetLogin / UnsetLogin");
+  PK_RUN (testSetLogin);
+  PK_RUN (testSetLoginReplacesExisting);
+  PK_RUN (testSetLoginNullAccess);
+  PK_RUN (testSetLoginNullRefresh);
+  PK_RUN (testUnsetLogin);
+  PK_RUN (testUnsetLoginIdempotent);
 
-  PL_SUITE ("config - load");
-  PL_RUN (testLoadNullFile);
-  PL_RUN (testLoadNonexistentFile);
+  PK_SUITE ("config - load");
+  PK_RUN (testLoadNullFile);
+  PK_RUN (testLoadNonexistentFile);
+  PK_RUN (testLoadCaseInsensitive);
+  PK_RUN (testLoadMalformed);
 
-  PL_SUITE ("config - save / round-trip");
-  PL_RUN (testRoundtripWithLogin);
-  PL_RUN (testRoundtripPreservesGlob);
-  PL_RUN (testRoundtripNoLogin);
-  PL_RUN (testRoundtripUnsetAfterSet);
+  PK_SUITE ("config - save / round-trip");
+  PK_RUN (testRoundtripWithLogin);
+  PK_RUN (testRoundtripPreservesGlob);
+  PK_RUN (testRoundtripNoLogin);
+  PK_RUN (testRoundtripUnsetAfterSet);
+  PK_RUN (testSaveFormat);
+  PK_RUN (testSaveLineBreakRejected);
 
-  PL_SUITE ("config - device endpoint");
-  PL_RUN (testDeviceRoundtrip);
-  PL_RUN (testDeviceDefaultWhenMissing);
+  PK_SUITE ("config - device endpoint");
+  PK_RUN (testDeviceRoundtrip);
+  PK_RUN (testDeviceDefaultWhenMissing);
 
-  PL_SUMMARY ();
+  pkDestroy (client);
+  PK_SUMMARY ();
 }

@@ -33,7 +33,7 @@
  * Includes
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#include "types.h"
+#include "pktypes.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -41,43 +41,43 @@
  * Helpers
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-static PLInt plAssertions = 0;
-static PLInt plFailures = 0;
+static PKInt pkAssertions = 0;
+static PKInt pkFailures = 0;
 
-static void
-plAssertImpl (PLInt cond, const PLChar *expr, const PLChar *file, PLInt line)
+static PKVoid
+pkAssertImpl (PKInt cond, const PKChar *expr, const PKChar *file, PKInt line)
 {
-  plAssertions++;
+  pkAssertions++;
   if (!cond)
     {
       fprintf (stderr, "\n    assertion failed: %s (%s:%d)", expr, file, line);
-      plFailures++;
+      pkFailures++;
     }
 }
 
-#define PL_ASSERT(cond) plAssertImpl (!!(cond), #cond, __FILE__, __LINE__)
-#define PL_ASSERT_EQ(a, b) PL_ASSERT ((a) == (b))
-#define PL_ASSERT_STR_EQ(a, b) PL_ASSERT (strcmp ((a), (b)) == 0)
-#define PL_ASSERT_MEM_EQ(a, b, n) PL_ASSERT (memcmp ((a), (b), (n)) == 0)
+#define PK_ASSERT(cond) pkAssertImpl (!!(cond), #cond, __FILE__, __LINE__)
+#define PK_ASSERT_EQ(a, b) PK_ASSERT ((a) == (b))
+#define PK_ASSERT_STR_EQ(a, b) PK_ASSERT (strcmp ((a), (b)) == 0)
+#define PK_ASSERT_MEM_EQ(a, b, n) PK_ASSERT (memcmp ((a), (b), (n)) == 0)
 
-#define PL_RUN(fn)                                                            \
+#define PK_RUN(fn)                                                            \
   do                                                                          \
     {                                                                         \
-      PLInt nBefore = plFailures;                                             \
+      PKInt nBefore = pkFailures;                                             \
       printf ("  %-48s", #fn);                                                \
       fflush (stdout);                                                        \
       fn ();                                                                  \
-      printf ("%s\n", plFailures == nBefore ? "ok" : "FAIL");                 \
+      printf ("%s\n", pkFailures == nBefore ? "ok" : "FAIL");                 \
     }                                                                         \
   while (0)
 
-#define PL_SUITE(name) printf ("\n%s\n", name)
+#define PK_SUITE(name) printf ("\n%s\n", name)
 
-#define PL_SUMMARY()                                                          \
+#define PK_SUMMARY()                                                          \
   do                                                                          \
     {                                                                         \
-      printf ("\n%d assertions, %d failed\n", plAssertions, plFailures);      \
-      return plFailures > 0 ? 1 : 0;                                          \
+      printf ("\n%d assertions, %d failed\n", pkAssertions, pkFailures);      \
+      return pkFailures > 0 ? 1 : 0;                                          \
     }                                                                         \
   while (0)
 

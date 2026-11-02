@@ -26,7 +26,7 @@
 #
 
 cmake_minimum_required(VERSION 3.20)
-project(p6a VERSION 1.14.0 LANGUAGES C)
+project(p6a VERSION 2.0.0 LANGUAGES C)
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -37,11 +37,18 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
+option(BUILD_SHARED_LIBS "Build libpartoska as a shared library" OFF)
 option(WITH_SANITIZERS "Use address and undefined sanitizers" OFF)
 option(WITH_VERBOSE_DEBUG "Extra verbose mode in Debug build" OFF)
 option(WITH_TESTS "Build and register unit tests" OFF)
 
 include(GNUInstallDirs)
+
+# Bikini 2.x, the INI library, linked statically from its release archive or
+# package; point CMAKE_PREFIX_PATH at an unpacked archive outside the default
+# search paths.
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+find_package(Bikini 2.0 REQUIRED)
 
 # Compiler configuration shared by the tool and the unit tests. The options
 # are limited to C, so that the resource compiler of Windows builds does not
@@ -74,8 +81,9 @@ if(WIN32)
   enable_language(RC)
 endif()
 
-# P6A build.
-add_subdirectory(src)
+# The library and the command line tool.
+add_subdirectory(src/lib)
+add_subdirectory(src/cli)
 
 # Unit tests (opt-in via -DWITH_TESTS=ON).
 if(WITH_TESTS)
@@ -87,11 +95,13 @@ install(FILES LICENSE.txt README.md THIRD_PARTY_LICENSES.txt
   DESTINATION ${CMAKE_INSTALL_DOCDIR})
 
 # CPack packaging: installer and tarball on macOS, DEB, RPM and tarball on
-# Linux, installers (NSIS, WiX) and ZIP on Windows.
+# Linux, installers (NSIS, WiX) and ZIP on Windows. Every package holds the
+# tool, the static library with its headers and pkg-config file, and the
+# docs.
 set(CPACK_PACKAGE_NAME "p6a")
 set(CPACK_PACKAGE_VENDOR "Partoska Laboratory")
 set(CPACK_PACKAGE_CONTACT "info@partoska.com")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Command-line interface for Partoska.com media sharing service")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Command-line interface and C library for Partoska.com media sharing service")
 set(CPACK_PACKAGE_HOMEPAGE_URL "https://www.partoska.com/p6a")
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE.txt")
@@ -135,14 +145,20 @@ elseif(UNIX)
   set(CPACK_DEBIAN_PACKAGE_DEPENDS "libcurl4t64 | libcurl4")
   set(CPACK_DEBIAN_PACKAGE_SECTION "net")
   set(CPACK_RPM_PACKAGE_REQUIRES "libcurl")
+  # Programs linking libpartoska (static) also link Bikini; the tool alone
+  # does not need it.
+  set(CPACK_DEBIAN_PACKAGE_SUGGESTS "bikini")
+  set(CPACK_RPM_PACKAGE_SUGGESTS "bikini")
   set(CPACK_RPM_PACKAGE_LICENSE "MIT")
   set(CPACK_RPM_PACKAGE_GROUP "Applications/Internet")
 
   # Application icons for the freedesktop.org hicolor theme.
   set(P6A_ICON_SIZES 16x16 24x24 32x32 48x48 64x64 128x128 256x256 512x512 scalable)
   install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/assets/icons/hicolor" DESTINATION ${CMAKE_INSTALL_DATADIR}/icons)
-  # The icon theme directories belong to the system, not to this package.
+  # The icon theme and pkg-config directories belong to the system, not to
+  # this package.
   set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION
+    /usr/lib/pkgconfig
     /usr/share/icons
     /usr/share/icons/hicolor)
   foreach(size ${P6A_ICON_SIZES})

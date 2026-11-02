@@ -29,4 +29,8 @@ CompileFlags:
   Add:
     - "-xc"
     - "-std=c99"
-    - "--include-directory=../src"
+    - "-D_XOPEN_SOURCE=700"
+    - "--include-directory=../src/lib/inc"
+    - "--include-directory=../src/lib/src"
+    - "--include-directory=../src/cli/src"
+    - "--include-directory=../deps/bikini/include"

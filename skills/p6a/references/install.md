@@ -129,11 +129,19 @@ p6a version
 
 ## Step 2: Log in
 
+Check first whether a login is already saved (exit code 0 means yes):
+
+```bash
+p6a status
+```
+
+If not, log in:
+
 ```bash
 p6a login
 ```
 
-This starts an OAuth device flow: it prints a link and a short code (such as `BCDF-GHJK`), then waits. Relay both to the user; they open the link in a browser on any device, check the code, and allow access. The command finishes on its own once they do, or fails if they deny it or the code expires after 15 minutes. Credentials are saved to `~/.p6a/` and reused automatically. To use a custom config directory instead of `~/.p6a/`, pass `-D <path>` to commands that support it (e.g. `p6a login -D ~/work/.p6a`).
+This starts an OAuth device flow: it prints a link and a short code (such as `BCDF-GHJK`), then waits. Relay both to the user; they open the link in a browser on any device, check the code, and allow access. The command finishes on its own once they do, or fails if they deny it or the code expires after 15 minutes. Credentials are saved to `~/.p6a/` and reused automatically. To use a custom config directory instead of `~/.p6a/`, pass `-D <path>` to commands that support it (e.g. `p6a login -D ~/work/.p6a`). `p6a login -F json` prints just `{"uri":"…","code":"…","expires":900}` as soon as the code is known, without the banner, which is easier to relay; the exit code tells whether the login succeeded.
 
 Verify the connection:
 
