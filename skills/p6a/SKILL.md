@@ -1,10 +1,10 @@
 ---
 name: p6a
-description: Construct p6a CLI commands and workflows for Partoska.com photo-sharing — install and login, list/create/update events, upload and moderate media, review photos on the user's behalf (approve pending uploads against their rules, pick favorites, privacy-check before going public, find a moment), help hosts during a live event (coverage checks, guest nudges, live moderation), download photos in full quality, bulk sync, QR codes and share cards, shell scripts and cron jobs, and design event assets including collages and recap stories.
+description: Construct p6a CLI commands and workflows for Partoska.com photo-sharing — install and login, list/create/update events, join events from an invite code or link, manage trusted guests of private events, upload and moderate media, review photos on the user's behalf (approve pending uploads against their rules, pick favorites, privacy-check before going public, find a moment), help hosts during a live event (coverage checks, guest nudges, live moderation), download photos in full quality, bulk sync, QR codes and share cards, shell scripts and cron jobs, and design event assets including collages and recap stories.
 license: MIT
 metadata:
   author: Partoska Laboratory
-  version: "2.5.0"
+  version: "2.6.0"
 ---
 
 # p6a CLI Skill
@@ -25,6 +25,8 @@ metadata:
 - `/p6a how are the photos going at the party? nudge the guests` — coverage check plus a reminder message
 - `/p6a keep moderating the gala every 20 minutes until midnight` — live moderation on a schedule
 - `/p6a make a recap story of the hike` — the event in order, a few captioned photos per moment
+- `/p6a join the party from this invite: 6024 8910 2150 4542 9CCA B150 959F 1FEE` — join with a code from a printed card
+- `/p6a let everyone from @firm.cz into the company party without waiting for approval` — trust a domain
 
 ## What This Skill Does
 
@@ -78,6 +80,7 @@ p6a list                           # All accessible events (plain table)
 p6a list -q "Birthday"             # Filter by name
 p6a list -o                        # Only events you own
 p6a list -f                        # Only favorited events
+p6a list -c                        # Only events where you are a contributor
 p6a list -F json                   # JSON output (pipe to jq)
 p6a list -F csv                    # CSV output
 p6a list -1                        # IDs only, one per line (pipe-friendly)
@@ -91,7 +94,7 @@ p6a sync -t ~/backup -o            # Only events you own
 p6a sync -t ~/backup -f            # Only favorited events
 ```
 
-Sync creates one subdirectory per event, named `YYYY-MM-DD Event Name`, and skips files already downloaded. It is safe to run repeatedly.
+Sync creates one subdirectory per event, named `YYYY-MM-DD Event Name`, and skips files already downloaded. It is safe to run repeatedly. Events whose photos the user may not see (a private event they joined that the organizer hasn't let them into yet) are skipped with a warning; the rest still sync.
 
 ### Create & Update Events
 
@@ -111,6 +114,32 @@ p6a update -e <event-id> -E 2025-06-01T18:00:00        # Set end date/time
 ```
 
 Dates use ISO 8601 format. Multiple update flags can be combined in one call.
+
+### Join an Event
+
+```bash
+p6a join -i "6024 8910 2150 4542 9CCA B150 959F 1FEE"  # Printed code from a share card
+p6a join -i https://partoska.com/i/<code>              # Invite link
+p6a join -i <code-or-link> -1                          # Print the event ID only
+p6a join -i <code-or-link> -F json                     # [{…}], the same event record as list/create
+```
+
+Use it when the user has an invite (a link, a QR code they decoded, or a code read off a printed card), not an event ID. The invite accepts UUIDs, grouped printed codes (optional `PARTOSKA.COM` prefix, OCR mistakes corrected), base64 codes, and `/i/`, `/q/` or `app.partoska.com` links. Joining again is harmless. In a private event, `"owner": false` and `"contributor": false` after joining mean the organizer still has to let the user in: until then the event's photos stay hidden from them too (`media` and `download` fail with HTTP 403, `sync` skips the event), so tell the user to wait for the organizer rather than retrying. In a public event every guest can see and upload photos. `list -F json` carries the same `contributor` field; `p6a list -c` lists only the events where the user is a contributor. A 404 means the invite is unknown or revoked, or the event is inactive.
+
+### Trusted Guests (private events, admin only)
+
+```bash
+p6a trusted -e <event-id>                                  # Show the list
+p6a trusted -e <event-id> -a @example.com -a anna@firm.cz  # Add entries
+p6a trusted -e <event-id> -r anna@firm.cz                  # Remove an entry
+p6a trusted -e <event-id> -c -a "a@x.cz, b@y.cz"           # Replace the whole list
+p6a trusted -e <event-id> -c                               # Clear (everyone waits for approval)
+p6a trusted -e <event-id> -F json                          # ["@example.com","anna@firm.cz"], also after a change
+```
+
+Guests whose email or exact domain (never subdomains) is on the list become contributors as soon as they join, without waiting for approval. Adding entries also approves at once the pending requests the list matches, so confirm with the user before adding a broad domain. Removing an entry does not revoke access already granted, and removing one that is not on the list is ignored. At most 200 entries. `-a` and `-r` change only the entries given, so a co-organizer's concurrent changes are kept; prefer them over `-c`, which empties the whole list.
+
+p6a cannot approve one guest's access request directly, but the list can: when a guest is waiting, adding their email (`-a anna@firm.cz`) approves them at once. Taking the entry out again afterwards keeps their access, so do that only if the user wants the list to stay as it was. The list is only consulted for private events; in a public event every guest already has access.
 
 ### Edit & Approve Media
 

@@ -36,6 +36,7 @@
 #include "create.h"
 #include "download.h"
 #include "edit.h"
+#include "join.h"
 #include "link.h"
 #include "list.h"
 #include "log.h"
@@ -46,6 +47,7 @@
 #include "qr.h"
 #include "report.h"
 #include "sync.h"
+#include "trusted.h"
 #include "update.h"
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -198,6 +200,13 @@ pkcValidate (const PKCArg *args)
                     ? "Event ID and source file are required"
                     : NULL;
       break;
+    case PKC_CJOIN:
+      missing
+          = !args->c.join.invite ? "Invite code or link is required" : NULL;
+      break;
+    case PKC_CTRUSTED:
+      missing = !args->c.trusted.event ? "Event ID is required" : NULL;
+      break;
     default:
       break;
     }
@@ -343,7 +352,8 @@ pkcDoCommand (PKClient *client, const PKCArg *args)
     case PKC_CSYNC:
       return pkcSync (client, args->c.sync.target, owner, favorite);
     case PKC_CLIST:
-      return pkcList (client, args->c.list.query, owner, favorite, fmt);
+      return pkcList (client, args->c.list.query, owner, favorite,
+                      (args->flags & PKC_FCON) ? PK_TRUE : PK_FALSE, fmt);
     case PKC_CCREATE:
       return pkcCreate (client, args->c.create.name, fmt);
     case PKC_CUPDATE:
@@ -380,6 +390,13 @@ pkcDoCommand (PKClient *client, const PKCArg *args)
           client, args->c.card.event, args->c.card.out, args->c.card.design,
           args->c.card.locale, args->c.card.layout, args->c.card.paper,
           fmt == PKC_FMTJPG, (args->flags & PKC_FNOBG) ? PK_TRUE : PK_FALSE);
+    case PKC_CJOIN:
+      return pkcJoin (client, args->c.join.invite, fmt);
+    case PKC_CTRUSTED:
+      return pkcTrusted (client, args->c.trusted.event, args->c.trusted.add,
+                         args->c.trusted.adds, args->c.trusted.remove,
+                         args->c.trusted.removes,
+                         (args->flags & PKC_FCLEAR) ? PK_TRUE : PK_FALSE, fmt);
     default:
       PKC_ERROR ("Unknown command");
       return PK_EARG;
@@ -408,6 +425,8 @@ pkcDoHelp (void)
   PKC_INFO ("  list                List events");
   PKC_INFO ("  create              Create a new event");
   PKC_INFO ("  update              Update an existing event");
+  PKC_INFO ("  join                Join an event with an invite code or link");
+  PKC_INFO ("  trusted             Show or change trusted guests");
   PKC_INFO ("  edit                Update a media item");
   PKC_INFO (
       "  approve             Approve or revoke approval of a media item");
@@ -453,6 +472,8 @@ pkcDoHelp (void)
   PKC_INFO ("  -q, --query <text>  Filter events by name");
   PKC_INFO ("  -o, --owner-only    List only events owned by user");
   PKC_INFO ("  -f, --favorite-only List only favorite events");
+  PKC_INFO ("  -c, --contributor-only");
+  PKC_INFO ("                      List only events you contribute to");
   PKC_INFO (
       "  -1                  Print IDs only, one per line (same as -F one)");
   PKC_INFO (
@@ -479,6 +500,26 @@ pkcDoHelp (void)
   PKC_INFO ("  -F, --no-favorite   Unmark event as favorite");
   PKC_INFO ("  -m, --moderated     Enable upload moderation");
   PKC_INFO ("  -M, --no-moderated  Disable upload moderation");
+  PKC_INFO ("");
+  PKC_INFO ("Join event options:");
+  PKC_INFO (
+      "  -D, --dir <path>    Specify working directory (default: ~/.p6a)");
+  PKC_INFO ("  -i, --invite <code> Invite code or link (required)");
+  PKC_INFO ("  -1                  Print event ID only (same as -F one)");
+  PKC_INFO (
+      "  -F, --format <fmt>  Output format: plain (default), json, csv, one");
+  PKC_INFO ("");
+  PKC_INFO ("Trusted guests options:");
+  PKC_INFO (
+      "  -D, --dir <path>    Specify working directory (default: ~/.p6a)");
+  PKC_INFO ("  -e, --event <id>    Event ID (required)");
+  PKC_INFO ("  -a, --add <ent>     Add emails or @domains (repeatable)");
+  PKC_INFO ("  -r, --remove <ent>  Remove emails or @domains (repeatable)");
+  PKC_INFO ("  -c, --clear         Empty the list first");
+  PKC_INFO ("  -1                  Print entries only, one per line (same as "
+            "-F one)");
+  PKC_INFO (
+      "  -F, --format <fmt>  Output format: plain (default), json, csv, one");
   PKC_INFO ("");
   PKC_INFO ("Edit media options:");
   PKC_INFO (
@@ -569,6 +610,10 @@ pkcDoHelp (void)
   PKC_INFO ("  p6a create -n \"Birthday Party\"");
   PKC_INFO (
       "  p6a update -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -n \"New Name\"");
+  PKC_INFO ("  p6a join -i \"6024 8910 2150 4542 9CCA B150 959F 1FEE\"");
+  PKC_INFO ("  p6a trusted -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7");
+  PKC_INFO ("  p6a trusted -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 "
+            "-a @example.com -a anna@firm.cz");
   PKC_INFO ("  p6a sync -t ./photos -f");
   PKC_INFO ("  p6a sync --target ./media --owner-only");
   PKC_INFO ("  p6a qr -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7");

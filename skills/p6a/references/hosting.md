@@ -27,6 +27,7 @@ What to report, briefly:
 - **Gaps in time.** Empty or thin stretches across the event window — "nothing between 21:00 and 22:30." When hours are too coarse, group by ten-minute prefixes (`.taken[0:15]`) instead. Taken timestamps come from the camera and may be in UTC or off by a time zone; say so if the gaps look suspicious.
 - **Gaps in moments.** If the user names moments that matter (speeches, first dance, award ceremony), check whether photos exist around those times. Look at a few to confirm (see `review.md`) — don't download the whole event.
 - **Moderation backlog.** In a moderated event, the number of photos still pending. Other guests can't see those uploads until they are approved, and a gallery that looks empty discourages more uploads — offer to moderate (`review.md`).
+- **Guests waiting at the door.** In a private event, guests the organizer hasn't let in can neither see nor upload photos, and p6a can't list who is waiting. If uploads are low and the guests are a known group (a company, a team, a family domain), offer to trust them with `p6a trusted -e "$EID" -a @domain` — that also lets in everyone from that domain who is already waiting. Confirm the domain with the user first.
 
 `p6a media` only tells you whether *you* uploaded a photo (`owner`), not which guests did, so don't name people who haven't.
 

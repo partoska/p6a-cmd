@@ -68,25 +68,12 @@ PKVoid pkcPrintEventHeader (PKCArgFmt fmt);
 /**
  * Prints a single event row in the given format.
  *
- * @param name      Event display name.
- * @param id        Event UUID.
- * @param from      Event start date string.
- * @param to        Event end date string.
- * @param owner     Whether the user owns the event.
- * @param favorite  Whether the event is favorited.
- * @param pub       Whether the event is public.
- * @param moderated Whether media uploads require moderator approval.
- * @param guests    Number of guests.
- * @param media     Number of media items.
- * @param fmt       Output format.
- * @param last      Whether this is the last row (used for JSON array
- *                  formatting).
+ * @param event Event to print.
+ * @param fmt   Output format.
+ * @param last  Whether this is the last row (used for JSON array
+ *              formatting).
  */
-PKVoid pkcPrintEventRow (const PKChar *name, const PKChar *id,
-                         const PKChar *from, const PKChar *to, PKBool owner,
-                         PKBool favorite, PKBool pub, PKBool moderated,
-                         PKInt guests, PKInt media, PKCArgFmt fmt,
-                         PKBool last);
+PKVoid pkcPrintEventRow (const PKEvent *event, PKCArgFmt fmt, PKBool last);
 
 /**
  * Prints the output footer for an event table in the given format.
@@ -102,10 +89,12 @@ PKVoid pkcPrintEventFooter (PKCArgFmt fmt);
  * @param query    Optional search query string, or NULL.
  * @param owner    When true, restricts output to events owned by the user.
  * @param favorite When true, restricts output to favorited events.
+ * @param contributor When true, restricts output to events where the user
+ *                    has the contributor role.
  * @param fmt      Output format.
  * @return PK_OK on success, or a PK_E* error code on failure.
  */
 PKInt pkcList (PKClient *client, const PKChar *query, PKBool owner,
-               PKBool favorite, PKCArgFmt fmt);
+               PKBool favorite, PKBool contributor, PKCArgFmt fmt);
 
 #endif

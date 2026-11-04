@@ -6,7 +6,7 @@
 
 Manage and sync your event photos from [Partoska](https://www.partoska.com) — right from your terminal.
 
-[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v2.0.0) [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt) [![Build](https://github.com/partoska/p6a-cmd/actions/workflows/build.yml/badge.svg)](https://github.com/partoska/p6a-cmd/actions/workflows/build.yml)
+[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v2.1.0) [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt) [![Build](https://github.com/partoska/p6a-cmd/actions/workflows/build.yml/badge.svg)](https://github.com/partoska/p6a-cmd/actions/workflows/build.yml)
 [![npm](https://img.shields.io/npm/v/@partoska/p6a.svg)](https://www.npmjs.com/package/@partoska/p6a)
 
 ## What is this?
@@ -77,7 +77,7 @@ sudo ./install.sh
 p6a login
 ```
 
-You'll see a device code and URL. Open the URL in your browser, enter the code, and authorize the app.
+You'll see a link and a short code. Open the link in a browser on this or any other device, check that it shows the same code, and allow access.
 
 ### 3. Sync Your Photos
 
@@ -109,6 +109,8 @@ my-photos/
 | `list`     | List events                                |
 | `create`   | Create a new event                         |
 | `update`   | Update an existing event                   |
+| `join`     | Join an event with an invite code or link  |
+| `trusted`  | Show or change trusted guests              |
 | `edit`     | Update a media item                        |
 | `approve`  | Approve or revoke approval of a media item |
 | `qr`       | Download QR code for an event              |
@@ -202,6 +204,8 @@ Sync events and photos from Partoska to your computer.
 p6a sync -t <target-directory>
 ```
 
+Events whose photos you may not see yet are skipped with a warning, and the rest still sync. That happens with a private event you joined while the organizer hasn't let you in yet. Folders synced earlier are kept.
+
 **Options:**
 
 - `-t, --target <path>` - Where to save photos (required).
@@ -246,6 +250,7 @@ p6a list
 - `-q, --query <text>` - Filter events by name.
 - `-o, --owner-only` - List only events you own.
 - `-f, --favorite-only` - List only favorite events.
+- `-c, --contributor-only` - List only events where you have the contributor role, e.g. private events you joined and were let in to upload to. Filters combine: `-o -c` lists your own events you also contribute to.
 - `-1` - Print IDs only, one per line (shorthand for `-F one`).
 - `-F, --format <fmt>` - Output format: `plain` (default), `json`, `csv`, `one`.
 - `-D, --dir <path>` - Custom config directory (default: `~/.p6a`).
@@ -265,6 +270,9 @@ p6a list --owner-only
 # Only favorites matching a query.
 p6a list -q "Wedding" --favorite-only
 
+# Only events you may upload to as a contributor.
+p6a list --contributor-only
+
 # Print event IDs only.
 p6a list -1
 
@@ -278,9 +286,11 @@ p6a list -o -1 | xargs -I{} p6a qr -e {}
 **Default output columns:**
 
 ```
-NAME                              ID                                    FROM        TO          OWN FAV PUB MOD  GUESTS  MEDIA
-Birthday Party                    12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7  2026-01-05  2026-01-06  yes yes yes  no       5     42
+NAME                              ID                                    FROM        TO          OWN CON FAV PUB MOD  GUESTS  MEDIA
+Birthday Party                    12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7  2026-01-05  2026-01-06  yes  no yes yes  no       5     42
 ```
+
+`OWN` tells that you own the event, `CON` that you have the contributor role in it (may upload to a private event). In JSON these are `owner` and `contributor`; in CSV, `contributor` is the last column. Servers that predate contributor roles report `false`.
 
 ### `create` - Create a New Event
 
@@ -308,8 +318,8 @@ p6a create -n "Birthday Party" -F json | jq '.id'
 On success, the created event is printed in the same table format as `list`:
 
 ```
-NAME              ID                                    FROM        TO          OWN FAV PUB MOD  GUESTS  MEDIA
-Birthday Party    12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7  2026-06-01  2026-06-01  yes  no yes  no       1      0
+NAME                              ID                                    FROM        TO          OWN CON FAV PUB MOD  GUESTS  MEDIA
+Birthday Party                    12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7  2026-06-01  2026-06-01  yes yes  no yes  no       1      0
 
 1 event(s)
 ```
@@ -353,6 +363,96 @@ p6a update -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 --private
 # Rename and make public in one call.
 p6a update -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -n "Summer Party" --public
 ```
+
+### `join` - Join an Event
+
+Join an event as a guest with an invite code or link, e.g. one read off a printed share card. Accepts every format the invite page does: a UUID, the grouped printed code (with or without the `PARTOSKA.COM` prefix; common OCR mistakes are corrected), a base64 code, a Partoska `/i/` or `/q/` link, or an `app.partoska.com` link with an `invite` parameter. Joining keeps any roles you already have, and joining again is harmless.
+
+In a private event you become a contributor straight away when your email or its domain is on the event's [trusted list](#trusted---trusted-guests); otherwise the organizer gets a request to let you in, and until they approve it the event's photos stay hidden from you too (`media` and `download` fail with HTTP 403, `sync` skips the event). In a public event every guest can see and upload photos.
+
+```bash
+p6a join -i <code-or-link>
+```
+
+**Options:**
+
+- `-i, --invite <code>` - Invite code or link (required). Quote it when it holds spaces.
+- `-1` - Print the event ID only (same as `-F one`).
+- `-F, --format <fmt>` - Output format: `plain` (default), `json`, `csv`, `one`.
+- `-D, --dir <path>` - Custom config directory (default: `~/.p6a`).
+
+**Examples:**
+
+```bash
+# Join with the code printed on a share card.
+p6a join -i "6024 8910 2150 4542 9CCA B150 959F 1FEE"
+
+# Join with an invite link and keep the event ID for later commands.
+EID=$(p6a join -i https://partoska.com/i/YCSJEC... -1)
+p6a media -e "$EID"
+```
+
+The joined event is printed as `list` and `create` print events, in every format; plain output adds the invite link and whether you may upload:
+
+```
+NAME                              ID                                    FROM        TO          OWN CON FAV PUB MOD  GUESTS  MEDIA
+Summer BBQ                        12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7  2026-06-01  2026-06-01   no  no  no  no yes      12     40
+
+Invite link: https://partoska.com/i/YCSJEC...
+Access:      waiting for the organizer to let you in
+```
+
+In a private event, `"contributor": false` (and `"owner": false`) after joining means the organizer still has to approve your request to upload. A revoked or unknown invite fails with HTTP 404, a ban with HTTP 403.
+
+### `trusted` - Trusted Guests
+
+Show or change the trusted list of a private event: emails and whole domains whose guests become contributors as soon as they join, without waiting for your approval. A domain covers only that exact domain, never its subdomains. Requires admin permission.
+
+```bash
+p6a trusted -e <id> [-c] [-r <entry>]... [-a <entry>]...
+```
+
+Without changes, the command prints the saved list. With changes, it empties the list (`-c`), removes entries (`-r`), adds entries (`-a`) and prints the list the server saved. Removals and additions each take one request, applied by the server in one step, so two organizers changing the list at the same time don't overwrite each other. Removing an entry that is not on the list is ignored. `-c` reads the list first and removes every entry except the ones it adds again, so those stay on the list throughout. Entries are lowercased, and domains are written `@example.com` (`example.com` and `*@example.com` mean the same). Every value may hold several entries separated by commas, semicolons or spaces. Adding entries also approves at once the pending requests of guests the list matches. Removing an entry does not take away access already granted. The list holds at most 200 entries.
+
+**Options:**
+
+- `-e, --event <id>` - Event ID (required).
+- `-a, --add <entry>` - Add emails or domains; may be repeated.
+- `-r, --remove <entry>` - Remove emails or domains; may be repeated.
+- `-c, --clear` - Empty the list first (alone, it clears the list).
+- `-1` - Print the entries only, one per line (same as `-F one`).
+- `-F, --format <fmt>` - Output format: `plain` (default), `json`, `csv`, `one`.
+- `-D, --dir <path>` - Custom config directory (default: `~/.p6a`).
+
+**Examples:**
+
+```bash
+# Show the list.
+p6a trusted -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7
+
+# Let everybody from your company in, plus one guest.
+p6a trusted -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -a @example.com -a anna@firm.cz
+
+# Replace the list with addresses from a file.
+p6a trusted -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -c -a "$(cat guests.txt)"
+
+# Remove an entry.
+p6a trusted -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -r anna@firm.cz
+
+# Trust nobody (every guest waits for approval).
+p6a trusted -e 12cafe34-5b8a-4d2e-9f01-0203a4b5c6d7 -c
+```
+
+Output:
+
+```
+@example.com
+anna@firm.cz
+
+2 trusted entry(ies)
+```
+
+With `-F json`, the output is an array of the entries, e.g. `["@example.com","anna@firm.cz"]`. The server does not tell which pending guests a change approved; `p6a list` shows your own access, organizers see the guests in Partoska.
 
 ### `edit` - Update a Media Item
 
@@ -799,8 +899,8 @@ This ensures the sync is idempotent and handles event renames gracefully.
 
 The message says why, e.g. the login was denied in the browser or the code expired. Make sure you:
 
-1. Entered the device code correctly.
-2. Authorized the app in your browser.
+1. Opened the link and checked that the page shows the same code.
+2. Allowed access in your browser, within 15 minutes.
 3. Have an active internet connection.
 
 ### "Request failed" errors

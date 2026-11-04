@@ -105,6 +105,15 @@ pkcCsvQuote (PKChar *dst, PKSize size, const PKChar *src)
   dst[j] = '\0';
 }
 
+/* Tells whether an event passes the filters of list. */
+static PKBool
+pkcListKeeps (const PKEvent *event, PKBool owner, PKBool favorite,
+              PKBool contributor)
+{
+  return (!owner || event->owner) && (!favorite || event->favorite)
+         && (!contributor || event->contributor);
+}
+
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Definitions - Public
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
@@ -116,8 +125,8 @@ pkcPrintEventHeader (PKCArgFmt fmt)
   switch (fmt)
     {
     case PKC_FMTCSV:
-      PKC_INFO (
-          "id,name,from,to,owner,favorite,public,moderated,guests,media");
+      PKC_INFO ("id,name,from,to,owner,favorite,public,moderated,guests,media,"
+                "contributor");
       break;
     case PKC_FMTJSON:
       PKC_INFO ("[");
@@ -126,9 +135,9 @@ pkcPrintEventHeader (PKCArgFmt fmt)
       break;
     default:
       pkcStrFmt (buf, PK_CHARSMAX (buf),
-                 "%-*s  %-36s  %-10s  %-10s  %3s %3s %3s %3s  %6s  %5s",
-                 NAME_WIDTH, "NAME", "ID", "FROM", "TO", "OWN", "FAV", "PUB",
-                 "MOD", "GUESTS", "MEDIA");
+                 "%-*s  %-36s  %-10s  %-10s  %3s %3s %3s %3s %3s  %6s  %5s",
+                 NAME_WIDTH, "NAME", "ID", "FROM", "TO", "OWN", "CON", "FAV",
+                 "PUB", "MOD", "GUESTS", "MEDIA");
       buf[PK_CHARSMAX (buf)] = '\0';
       PKC_INFO ("%s", buf);
       break;
@@ -136,11 +145,19 @@ pkcPrintEventHeader (PKCArgFmt fmt)
 }
 
 PKVoid
-pkcPrintEventRow (const PKChar *name, const PKChar *id, const PKChar *from,
-                  const PKChar *to, PKBool owner, PKBool favorite, PKBool pub,
-                  PKBool moderated, PKInt guests, PKInt media, PKCArgFmt fmt,
-                  PKBool last)
+pkcPrintEventRow (const PKEvent *event, PKCArgFmt fmt, PKBool last)
 {
+  const PKChar *name = event->name;
+  const PKChar *id = event->id;
+  const PKChar *from = event->from;
+  const PKChar *to = event->to;
+  const PKChar *owner = event->owner ? "true" : "false";
+  const PKChar *contributor = event->contributor ? "true" : "false";
+  const PKChar *favorite = event->favorite ? "true" : "false";
+  const PKChar *pub = event->pub ? "true" : "false";
+  const PKChar *moderated = event->moderated ? "true" : "false";
+  PKInt guests = event->guests;
+  PKInt media = event->media;
   PKChar buf[JSON_MAX];
 
   switch (fmt)
@@ -153,10 +170,9 @@ pkcPrintEventRow (const PKChar *name, const PKChar *id, const PKChar *from,
         pkcCsvQuote (qname, sizeof (qname), name);
         pkcCsvQuote (qfrom, sizeof (qfrom), from);
         pkcCsvQuote (qto, sizeof (qto), to);
-        pkcStrFmt (buf, PK_CHARSMAX (buf), "%s,%s,%s,%s,%s,%s,%s,%s,%d,%d", id,
-                   qname, qfrom, qto, owner ? "true" : "false",
-                   favorite ? "true" : "false", pub ? "true" : "false",
-                   moderated ? "true" : "false", guests, media);
+        pkcStrFmt (buf, PK_CHARSMAX (buf), "%s,%s,%s,%s,%s,%s,%s,%s,%d,%d,%s",
+                   id, qname, qfrom, qto, owner, favorite, pub, moderated,
+                   guests, media, contributor);
         buf[PK_CHARSMAX (buf)] = '\0';
         PKC_INFO ("%s", buf);
         break;
@@ -169,14 +185,13 @@ pkcPrintEventRow (const PKChar *name, const PKChar *id, const PKChar *from,
         PKChar ename[NAME_ESC_MAX];
         pkcJsonEsc (ename, sizeof (ename), name);
         const PKChar *comma = last ? "" : ",";
-        pkcStrFmt (
-            buf, PK_CHARSMAX (buf),
-            "  {\"id\":\"%s\",\"name\":\"%s\",\"from\":\"%s\","
-            "\"to\":\"%s\",\"owner\":%s,\"favorite\":%s,"
-            "\"public\":%s,\"moderated\":%s,\"guests\":%d,\"media\":%d}%s",
-            id, ename, from, to, owner ? "true" : "false",
-            favorite ? "true" : "false", pub ? "true" : "false",
-            moderated ? "true" : "false", guests, media, comma);
+        pkcStrFmt (buf, PK_CHARSMAX (buf),
+                   "  {\"id\":\"%s\",\"name\":\"%s\",\"from\":\"%s\","
+                   "\"to\":\"%s\",\"owner\":%s,\"contributor\":%s,"
+                   "\"favorite\":%s,\"public\":%s,\"moderated\":%s,"
+                   "\"guests\":%d,\"media\":%d}%s",
+                   id, ename, from, to, owner, contributor, favorite, pub,
+                   moderated, guests, media, comma);
         buf[PK_CHARSMAX (buf)] = '\0';
         PKC_INFO ("%s", buf);
         break;
@@ -194,10 +209,11 @@ pkcPrintEventRow (const PKChar *name, const PKChar *id, const PKChar *from,
 
         PKInt width = NAME_WIDTH + (PKInt)pkcExtraBytes (tname);
         pkcStrFmt (buf, PK_CHARSMAX (buf),
-                   "%-*s  %-36s  %-10s  %-10s  %3s %3s %3s %3s  %6d  %5d",
-                   width, tname, id, tfrom, tto, owner ? "yes" : "no",
-                   favorite ? "yes" : "no", pub ? "yes" : "no",
-                   moderated ? "yes" : "no", guests, media);
+                   "%-*s  %-36s  %-10s  %-10s  %3s %3s %3s %3s %3s  %6d  %5d",
+                   width, tname, id, tfrom, tto, event->owner ? "yes" : "no",
+                   event->contributor ? "yes" : "no",
+                   event->favorite ? "yes" : "no", event->pub ? "yes" : "no",
+                   event->moderated ? "yes" : "no", guests, media);
         buf[PK_CHARSMAX (buf)] = '\0';
         PKC_INFO ("%s", buf);
         break;
@@ -220,7 +236,7 @@ pkcPrintEventFooter (PKCArgFmt fmt)
 
 PKInt
 pkcList (PKClient *client, const PKChar *query, PKBool owner, PKBool favorite,
-         PKCArgFmt fmt)
+         PKBool contributor, PKCArgFmt fmt)
 {
   if (!client)
     {
@@ -239,18 +255,10 @@ pkcList (PKClient *client, const PKChar *query, PKBool owner, PKBool favorite,
   PKSize filtered = 0;
   for (PKSize i = 0; i < list.count; ++i)
     {
-      PKEvent *e = &list.events[i];
-      if (owner && !e->owner)
+      if (pkcListKeeps (&list.events[i], owner, favorite, contributor))
         {
-          continue;
+          ++filtered;
         }
-
-      if (favorite && !e->favorite)
-        {
-          continue;
-        }
-
-      ++filtered;
     }
 
   pkcPrintEventHeader (fmt);
@@ -259,19 +267,12 @@ pkcList (PKClient *client, const PKChar *query, PKBool owner, PKBool favorite,
   for (PKSize i = 0; i < list.count; ++i)
     {
       PKEvent *e = &list.events[i];
-
-      if (owner && !e->owner)
-        {
-          continue;
-        }
-      if (favorite && !e->favorite)
+      if (!pkcListKeeps (e, owner, favorite, contributor))
         {
           continue;
         }
 
-      pkcPrintEventRow (e->name, e->id, e->from, e->to, e->owner, e->favorite,
-                        e->pub, e->moderated, e->guests, e->media, fmt,
-                        printed == filtered - 1);
+      pkcPrintEventRow (e, fmt, printed == filtered - 1);
 
       ++printed;
     }

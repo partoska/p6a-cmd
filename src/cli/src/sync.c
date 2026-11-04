@@ -507,6 +507,35 @@ pkcSyncEventRename (const PKChar *root, const PKChar *dir, PKClient *client,
   return PK_OK;
 }
 
+/*
+ * Fetches the media of an event. The list may show events whose media the
+ * user may not read (HTTP 403), e.g. a private event they joined that still
+ * waits for the organizer: those are skipped with a warning (*skip), so the
+ * other events still sync. Any other failure ends the sync.
+ */
+static PKInt
+pkcSyncFetch (PKClient *client, const PKEvent *event, PKMediaList *media,
+              PKBool *skip)
+{
+  *skip = PK_FALSE;
+  if (pkMediaList (client, event->id, media) == PK_OK)
+    {
+      return PK_OK;
+    }
+
+  const PKError *error = pkError (client);
+  if (error->status == PK_EHTTP && error->code == 403)
+    {
+      PKC_WARN ("Skipping event %s (%s): no access to its media", event->name,
+                event->id);
+      *skip = PK_TRUE;
+      return PK_OK;
+    }
+
+  pkcReport (client, "Failed to fetch media");
+  return error->status;
+}
+
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Definitions - Public
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
@@ -597,14 +626,19 @@ pkcSync (PKClient *client, const PKChar *target, PKBool owner, PKBool favorite)
           found = PK_TRUE;
 
           PKMediaList media;
-          if (pkMediaList (client, e->id, &media) != PK_OK)
+          PKBool skip;
+          PKInt fetched = pkcSyncFetch (client, e, &media, &skip);
+          if (fetched != PK_OK)
             {
-              pkcReport (client, "Failed to fetch media");
               pkcMemFree (uuid);
               pkcCloseDir (dir);
               pkcMemFree (matched);
               pkEventListFree (&events);
-              return pkError (client)->status;
+              return fetched;
+            }
+          if (skip)
+            {
+              break;
             }
 
           PKInt result = pkcSyncEventRename (target, dname, client, e, &media);
@@ -658,12 +692,17 @@ pkcSync (PKClient *client, const PKChar *target, PKBool owner, PKBool favorite)
         }
 
       PKMediaList media;
-      if (pkMediaList (client, e->id, &media) != PK_OK)
+      PKBool skip;
+      PKInt fetched = pkcSyncFetch (client, e, &media, &skip);
+      if (fetched != PK_OK)
         {
-          pkcReport (client, "Failed to fetch media");
           pkcMemFree (matched);
           pkEventListFree (&events);
-          return pkError (client)->status;
+          return fetched;
+        }
+      if (skip)
+        {
+          continue;
         }
 
       PKInt result = pkcSyncEventCreate (target, client, e, &media);

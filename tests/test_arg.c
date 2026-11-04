@@ -297,6 +297,19 @@ testList (void)
 
   PK_ASSERT_EQ (pkcArgParse (&args, 4, argvCsv), PK_OK);
   PK_ASSERT_EQ (PKC_ARGFMT (args.flags), PKC_FMTCSV);
+
+  // -c / --contributor-only filters on the contributor role.
+  PKChar *argvCon[] = { "p6a", "list", "-c" };
+  PKChar *argvConLong[] = { "p6a", "list", "--contributor-only", "-o" };
+  PK_ASSERT_EQ (pkcArgParse (&args, 2, argv), PK_OK);
+  PK_ASSERT_EQ (args.flags & PKC_FCON, (PKDword)0);
+
+  PK_ASSERT_EQ (pkcArgParse (&args, 3, argvCon), PK_OK);
+  PK_ASSERT (args.flags & PKC_FCON);
+
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argvConLong), PK_OK);
+  PK_ASSERT (args.flags & PKC_FCON);
+  PK_ASSERT (args.flags & PKC_FOWN);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -656,6 +669,102 @@ testApprove (void)
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Tests - join
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+static PKVoid
+testJoin (void)
+{
+  PKCArg args;
+  PKChar *argv[] = { "p6a", "join", "-i", "6024 8910 2150 4542" };
+  PKChar *argvLong[] = { "p6a",      "join",
+                         "--invite", "https://partoska.com/i/abc",
+                         "-F",       "json" };
+  PKChar *argvOne[] = { "p6a", "join", "-i", "code", "-1" };
+  PKChar *argvNone[] = { "p6a", "join" };
+  PKChar *argvExtra[] = { "p6a", "join", "-i", "code", "stray" };
+  PKChar *argvBadFmt[] = { "p6a", "join", "-i", "code", "-F", "svg" };
+
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argv), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CJOIN);
+  PK_ASSERT_STR_EQ (args.c.join.invite, "6024 8910 2150 4542");
+  PK_ASSERT_EQ (PKC_ARGFMT (args.flags), PKC_FMTPLAIN);
+
+  PK_ASSERT_EQ (pkcArgParse (&args, 6, argvLong), PK_OK);
+  PK_ASSERT_STR_EQ (args.c.join.invite, "https://partoska.com/i/abc");
+  PK_ASSERT_EQ (PKC_ARGFMT (args.flags), PKC_FMTJSON);
+
+  PK_ASSERT_EQ (pkcArgParse (&args, 5, argvOne), PK_OK);
+  PK_ASSERT_EQ (PKC_ARGFMT (args.flags), PKC_FMTONE);
+
+  PK_ASSERT_EQ (pkcArgParse (&args, 2, argvNone), PK_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 5, argvExtra), PK_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 6, argvBadFmt), PK_EARG);
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Tests - trusted
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+static PKVoid
+testTrusted (void)
+{
+  PKCArg args;
+  PKChar *argv[] = { "p6a", "trusted", "-e", "event-uuid" };
+  PKChar *argvEdit[]
+      = { "p6a",          "trusted", "-e",           "event-uuid", "-a",
+          "@example.com", "--add",   "anna@firm.cz", "-r",         "old@x.cz",
+          "-c",           "-F",      "csv" };
+  PKChar *argvNone[] = { "p6a", "trusted" };
+  PKChar *argvBare[] = { "p6a", "trusted", "-e", "event-uuid", "-a" };
+
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argv), PK_OK);
+  PK_ASSERT_EQ (args.cmd, PKC_CTRUSTED);
+  PK_ASSERT_STR_EQ (args.c.trusted.event, "event-uuid");
+  PK_ASSERT_EQ (args.c.trusted.adds, (PKSize)0);
+  PK_ASSERT_EQ (args.c.trusted.removes, (PKSize)0);
+  PK_ASSERT_EQ (args.flags & PKC_FCLEAR, (PKDword)0);
+
+  PK_ASSERT_EQ (pkcArgParse (&args, 13, argvEdit), PK_OK);
+  PK_ASSERT_EQ (args.c.trusted.adds, (PKSize)2);
+  PK_ASSERT_STR_EQ (args.c.trusted.add[0], "@example.com");
+  PK_ASSERT_STR_EQ (args.c.trusted.add[1], "anna@firm.cz");
+  PK_ASSERT_EQ (args.c.trusted.removes, (PKSize)1);
+  PK_ASSERT_STR_EQ (args.c.trusted.remove[0], "old@x.cz");
+  PK_ASSERT (args.flags & PKC_FCLEAR);
+  PK_ASSERT_EQ (PKC_ARGFMT (args.flags), PKC_FMTCSV);
+
+  // Counts start over with every parse.
+  PK_ASSERT_EQ (pkcArgParse (&args, 4, argv), PK_OK);
+  PK_ASSERT_EQ (args.c.trusted.adds, (PKSize)0);
+
+  PK_ASSERT_EQ (pkcArgParse (&args, 2, argvNone), PK_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, 5, argvBare), PK_EARG);
+}
+
+static PKVoid
+testTrustedLimit (void)
+{
+  // More -a values than PKC_ARG_LIST_MAX are refused.
+  PKChar *argv[4 + 2 * (PKC_ARG_LIST_MAX + 1)];
+  PKInt argc = 0;
+  argv[argc++] = "p6a";
+  argv[argc++] = "trusted";
+  argv[argc++] = "-e";
+  argv[argc++] = "event-uuid";
+  for (PKInt i = 0; i <= PKC_ARG_LIST_MAX; ++i)
+    {
+      argv[argc++] = "-a";
+      argv[argc++] = "@example.com";
+    }
+
+  PKCArg args;
+  PK_ASSERT_EQ (pkcArgParse (&args, argc, argv), PK_EARG);
+  PK_ASSERT_EQ (pkcArgParse (&args, argc - 2, argv), PK_OK);
+  PK_ASSERT_EQ (args.c.trusted.adds, (PKSize)PKC_ARG_LIST_MAX);
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Tests - flags cleared between calls
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
@@ -711,6 +820,9 @@ main (void)
   PK_RUN (testUpload);
   PK_RUN (testEdit);
   PK_RUN (testApprove);
+  PK_RUN (testJoin);
+  PK_RUN (testTrusted);
+  PK_RUN (testTrustedLimit);
 
   PK_SUITE ("arg - state isolation");
   PK_RUN (testFlagsCleared);

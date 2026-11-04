@@ -57,8 +57,8 @@ npx @partoska/p6a login
 p6a login
 ```
 
-You'll see a device code and URL. Open the URL in your browser, enter the code,
-and authorize the app.
+You'll see a link and a short code. Open the link in a browser on this or any
+other device, check that it shows the same code, and allow access.
 
 ### 2. Sync your photos
 
@@ -323,16 +323,19 @@ Reinstall with optional dependencies enabled:
 npm install -g @partoska/p6a
 ```
 
-### "Failed to login"
+### "Login failed"
 
-- Make sure you entered the device code correctly and authorized the app in
-  your browser.
+- The message says why, e.g. the login was denied in the browser or the code
+  expired.
+- Make sure you opened the link, checked that the page shows the same code,
+  and allowed access within 15 minutes.
 - Check that you have an active internet connection.
 
-### "Network error" during sync
+### "Request failed" errors
 
 - Verify your internet connection.
-- Refresh your session: `p6a logout` then `p6a login`.
+- Errors ending in `please (re-)login with 'p6a login'` mean the login is
+  missing or was refused: run `p6a logout` then `p6a login`.
 
 ### Files aren't downloading
 

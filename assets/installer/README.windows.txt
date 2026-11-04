@@ -2,10 +2,10 @@ p6a — Partoska Command-Line Interface
 
 DESCRIPTION
 
-p6a lets you authenticate with Partoska.com, list, create, and update
-events, synchronize event photos to a local directory, upload, list and
-download event media, retrieve invite links, and download QR codes and
-share cards from the command line.
+p6a lets you authenticate with Partoska.com, list, create, update, and
+join events, manage trusted guests, synchronize event photos to a
+local directory, upload, list and download event media, retrieve invite
+links, and download QR codes and share cards from the command line.
 
 USAGE
 
@@ -14,6 +14,8 @@ USAGE
   p6a list           List events
   p6a create         Create a new event
   p6a update         Update an existing event
+  p6a join           Join an event with an invite code or link
+  p6a trusted        Show or change trusted guests
   p6a qr             Download QR code for an event
   p6a card           Download share card for an event
   p6a link           Get invite link for an event

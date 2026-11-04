@@ -28,7 +28,7 @@
 # Project configuration.
 PROJECT = p6a
 LIBRARY = partoska
-VERSION = 2.0.0
+VERSION = 2.1.0
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
 LIBDIR ?= $(PREFIX)/lib
@@ -75,6 +75,8 @@ CLI_SRCS = $(SRCDIR)/cli/src/arg.c \
            $(SRCDIR)/cli/src/media.c \
            $(SRCDIR)/cli/src/create.c \
            $(SRCDIR)/cli/src/update.c \
+           $(SRCDIR)/cli/src/join.c \
+           $(SRCDIR)/cli/src/trusted.c \
            $(SRCDIR)/cli/src/edit.c \
            $(SRCDIR)/cli/src/approve.c \
            $(SRCDIR)/cli/src/qr.c \

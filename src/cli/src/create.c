@@ -59,9 +59,7 @@ pkcCreate (PKClient *client, const PKChar *name, PKCArgFmt fmt)
     }
 
   pkcPrintEventHeader (fmt);
-  pkcPrintEventRow (event.name, event.id, event.from, event.to, event.owner,
-                    event.favorite, event.pub, event.moderated, event.guests,
-                    event.media, fmt, PK_TRUE);
+  pkcPrintEventRow (&event, fmt, PK_TRUE);
   pkcPrintEventFooter (fmt);
   if (fmt == PKC_FMTPLAIN)
     {

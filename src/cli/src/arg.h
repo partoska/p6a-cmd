@@ -44,6 +44,9 @@
 #define PKC_ARGFAV(flags) ((PKInt)(((flags) & PKC_FFAVMASK) >> 10) - 1)
 #define PKC_ARGMOD(flags) ((PKInt)(((flags) & PKC_FMODMASK) >> 12) - 1)
 
+/* Times -a/--add and -r/--remove of trusted may each be given. */
+#define PKC_ARG_LIST_MAX 32
+
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Types
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
@@ -65,6 +68,8 @@ typedef enum
   PKC_CEDIT,
   PKC_CAPPROVE,
   PKC_CCARD,
+  PKC_CJOIN,
+  PKC_CTRUSTED,
   PKC_CHELP,
   PKC_CVERSION,
 
@@ -75,6 +80,7 @@ typedef enum
 {
   PKC_FOWN = 0x00000001,
   PKC_FFAV = 0x00000002,
+  PKC_FCON = 0x00000004,
   PKC_FFMTJSON = 0x00000010,
   PKC_FFMTCSV = 0x00000020,
   PKC_FFMTONE = 0x00000030,
@@ -93,7 +99,8 @@ typedef enum
   PKC_FMODTRUE = 0x00002000,
   PKC_FMODMASK = 0x00003000,
   PKC_FNOBG = 0x00004000,
-  PKC_FREVOKE = 0x00008000
+  PKC_FREVOKE = 0x00008000,
+  PKC_FCLEAR = 0x00010000
 } PKCArgFlag;
 
 typedef enum
@@ -181,6 +188,18 @@ typedef struct PKCArgs
       const PKChar *layout;
       const PKChar *paper;
     } card;
+    struct
+    {
+      const PKChar *invite;
+    } join;
+    struct
+    {
+      const PKChar *event;
+      const PKChar *add[PKC_ARG_LIST_MAX];
+      PKSize adds;
+      const PKChar *remove[PKC_ARG_LIST_MAX];
+      PKSize removes;
+    } trusted;
   } c;
 } PKCArg;
 

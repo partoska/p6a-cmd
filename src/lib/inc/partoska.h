@@ -40,7 +40,7 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #define PK_VERSION_MAJOR 2
-#define PK_VERSION_MINOR 0
+#define PK_VERSION_MINOR 1
 #define PK_VERSION_PATCH 0
 #define PK_VERSION_STRING                                                     \
   PK_XSTR (PK_VERSION_MAJOR)                                                  \
@@ -115,7 +115,7 @@ extern "C"
   /** Opaque client, from pkInit(); released by pkDestroy(). */
   typedef struct PKClient PKClient;
 
-  /** An event, as listed, created or updated. */
+  /** An event, as listed, created or joined. */
   typedef struct PKEvent
   {
     PKChar id[64];      /**< UUID. */
@@ -125,6 +125,8 @@ extern "C"
     PKChar from[32];    /**< Start time. */
     PKChar to[32];      /**< End time. */
     PKBool owner;       /**< The user owns the event. */
+    PKBool contributor; /**< The user has the contributor role; false when
+                             the server does not tell. */
     PKInt guests;       /**< Number of guests. */
     PKInt media;        /**< Number of media items. */
     PKBool favorite;    /**< The user marked it as a favorite. */
@@ -158,6 +160,14 @@ extern "C"
     PKMedia *media; /**< count media items. */
     PKSize count;   /**< Number of media items. */
   } PKMediaList;
+
+  /** Strings, e.g. of pkEventTrusted(); release with
+   *  pkStringListFree(). */
+  typedef struct PKStringList
+  {
+    PKChar **items; /**< count strings, UTF-8. */
+    PKSize count;   /**< Number of strings. */
+  } PKStringList;
 
   /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
    * Declarations
@@ -352,6 +362,85 @@ extern "C"
                           const PKChar *name, const PKChar *from,
                           const PKChar *to, PKInt pub, PKInt favorite,
                           PKInt moderated);
+
+  /**
+   * Joins an event as a guest with an invite. Private events also make the
+   * user a contributor when trusted, otherwise they ask the organizer
+   * for it; existing roles stay. Joining again is harmless.
+   *
+   * @param client Logged-in client.
+   * @param invite Invite code or link: a UUID, a printed code (optionally
+   *               prefixed PARTOSKA.COM), a base64 code, or an invite URL.
+   * @param event  Receives the event, as pkEventList() lists it.
+   * @param url    Receives the primary invite link, or NULL.
+   * @param size   Capacity of url in bytes.
+   * @return PK_OK on success, PK_EHTTP 404 when the invite is unknown or
+   *         revoked or the event inactive, 403 when the user is banned, or
+   *         another PK_E* status.
+   */
+  PKStatus pkEventJoin (PKClient *client, const PKChar *invite, PKEvent *event,
+                        PKChar *url, PKSize size);
+
+  /**
+   * Gets the trusted list of an event: emails and @domains whose
+   * guests become contributors without the organizer's approval. Needs
+   * admin access.
+   *
+   * @param client Logged-in client.
+   * @param event  UUID of the event.
+   * @param list   Receives the entries, sorted; release with
+   *               pkStringListFree(). Empty on failure, with nothing to
+   *               release.
+   * @return PK_OK on success, or a PK_E* status.
+   */
+  PKStatus pkEventTrusted (PKClient *client, const PKChar *event,
+                           PKStringList *list);
+
+  /**
+   * Adds entries to the trusted list of an event in one step on the
+   * server (POST), so concurrent changes are not lost. Saving also approves
+   * the pending requests the list matches. Entries are emails or domains
+   * (anna@example.com, @example.com, example.com, *@example.com); the server
+   * normalizes and deduplicates them. Needs admin access.
+   *
+   * @param client  Logged-in client.
+   * @param event   UUID of the event.
+   * @param entries Entries to add; none only reads the list.
+   * @param count   Number of entries.
+   * @param list    Receives the resulting list, sorted, or NULL; release
+   *                with pkStringListFree(). Empty on failure.
+   * @return PK_OK on success, PK_EHTTP 400 when an entry is invalid or the
+   *         list would exceed 200 entries, or another PK_E* status.
+   */
+  PKStatus pkEventTrustedAdd (PKClient *client, const PKChar *event,
+                              const PKChar *const *entries, PKSize count,
+                              PKStringList *list);
+
+  /**
+   * Removes entries from the trusted list of an event in one step on
+   * the server (DELETE); entries not on the list are ignored. Removing an
+   * entry does not revoke access already granted. Needs admin access.
+   *
+   * @param client  Logged-in client.
+   * @param event   UUID of the event.
+   * @param entries Entries to remove, normalized like pkEventTrustedAdd()
+   *                does; none only reads the list.
+   * @param count   Number of entries.
+   * @param list    Receives the resulting list, sorted, or NULL; release
+   *                with pkStringListFree(). Empty on failure.
+   * @return PK_OK on success, PK_EHTTP 400 when an entry is invalid, or
+   *         another PK_E* status.
+   */
+  PKStatus pkEventTrustedRemove (PKClient *client, const PKChar *event,
+                                 const PKChar *const *entries, PKSize count,
+                                 PKStringList *list);
+
+  /**
+   * Releases the strings of a list. Accepts an empty list.
+   *
+   * @param list List to empty.
+   */
+  PKVoid pkStringListFree (PKStringList *list);
 
   /**
    * Gets the primary invite link of an event.

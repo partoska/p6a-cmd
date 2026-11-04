@@ -33,6 +33,7 @@ add_executable(p6a
     src/create.h src/create.c src/update.h src/update.c src/edit.h src/edit.c
     src/approve.h src/approve.c src/qr.h src/qr.c src/card.h src/card.c
     src/link.h src/link.c src/sync.h src/sync.c src/download.h src/download.c
+    src/join.h src/join.c src/trusted.h src/trusted.c
     src/main.c)
 target_include_directories(p6a PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(p6a PRIVATE partoska Bikini::Bikini)

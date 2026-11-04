@@ -257,6 +257,11 @@ pkParseEvent (cJSON *json, PKEvent *event)
     }
   event->owner = cJSON_IsTrue (owner) ? 1 : 0;
 
+  // Newer servers only; contributor access is unknown on older ones.
+  cJSON *contributor
+      = cJSON_GetObjectItemCaseSensitive (json, "isContributor");
+  event->contributor = cJSON_IsTrue (contributor) ? 1 : 0;
+
   cJSON *guests = cJSON_GetObjectItemCaseSensitive (json, "guests");
   if (!cJSON_IsNumber (guests))
     {
@@ -359,6 +364,46 @@ pkParseMedia (cJSON *json, PKMedia *media)
   media->approved = cJSON_IsTrue (approved) ? 1 : 0;
 
   return PK_TRUE;
+}
+
+/* Copies an array of strings, a member of a JSON object, into a list. */
+static PKStatus
+pkJsonStrings (PKClient *client, const cJSON *json, const PKChar *name,
+               PKStringList *list)
+{
+  *list = (PKStringList){ 0 };
+
+  const cJSON *items = cJSON_GetObjectItemCaseSensitive (json, name);
+  if (!cJSON_IsArray (items))
+    {
+      return pkFail (client, PK_EDATA, 0, "Response without '%s'", name);
+    }
+
+  PKSize count = (PKSize)cJSON_GetArraySize (items);
+  list->items = pkMemZallocArray (count ? count : 1, sizeof (PKChar *));
+  if (!list->items)
+    {
+      return pkFailMem (client);
+    }
+
+  const cJSON *item = NULL;
+  cJSON_ArrayForEach (item, items)
+  {
+    if (!cJSON_IsString (item) || !item->valuestring)
+      {
+        pkStringListFree (list);
+        return pkFail (client, PK_EDATA, 0, "Malformed '%s'", name);
+      }
+    PKChar *copy = pkStrDup (item->valuestring, pkStrLen (item->valuestring));
+    if (!copy)
+      {
+        pkStringListFree (list);
+        return pkFailMem (client);
+      }
+    list->items[list->count++] = copy;
+  }
+
+  return PK_OK;
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -490,6 +535,171 @@ pkEventUpdate (PKClient *client, const PKChar *event, const PKChar *name,
   cJSON_Delete (body);
 
   return status;
+}
+
+PKStatus
+pkEventJoin (PKClient *client, const PKChar *invite, PKEvent *event,
+             PKChar *url, PKSize size)
+{
+  if (!invite || !event)
+    {
+      return pkFail (client, PK_EARG, 0, "No invite");
+    }
+  *event = (PKEvent){ 0 };
+
+  cJSON *body = cJSON_CreateObject ();
+  if (!body || !cJSON_AddStringToObject (body, "invite", invite))
+    {
+      cJSON_Delete (body);
+      return pkFailMem (client);
+    }
+
+  cJSON *json = NULL;
+  PKStatus status = pkCall (client, "POST", "/event/join", body, 200, &json);
+  cJSON_Delete (body);
+  if (status == PK_EHTTP)
+    {
+      PKLong code = pkError (client)->code;
+      if (code == 400)
+        {
+          status
+              = pkFail (client, PK_EHTTP, code, "Not an invite code or link");
+        }
+      else if (code == 404)
+        {
+          status = pkFail (client, PK_EHTTP, code,
+                           "Invite not found or revoked, or the event is "
+                           "inactive");
+        }
+      else if (code == 403)
+        {
+          status = pkFail (client, PK_EHTTP, code,
+                           "Not allowed to join the event");
+        }
+    }
+  if (status == PK_OK && !pkParseEvent (json, event))
+    {
+      status = pkFail (client, PK_EDATA, 0, "Malformed event");
+    }
+  if (status == PK_OK && url)
+    {
+      status = pkJsonCopy (client, json, "url", url, size);
+    }
+  cJSON_Delete (json);
+
+  return status;
+}
+
+PKStatus
+pkEventTrusted (PKClient *client, const PKChar *event, PKStringList *list)
+{
+  *list = (PKStringList){ 0 };
+
+  PKChar path[PATH_MAX_API];
+  PKStatus status = event ? pkPath (client, path, sizeof (path),
+                                    "/event/%s/trusted", event)
+                          : pkFail (client, PK_EARG, 0, "No event");
+  cJSON *json = NULL;
+  if (status == PK_OK)
+    {
+      status = pkCall (client, "GET", path, NULL, 200, &json);
+    }
+  // The list envelope always holds the whole list (hasMore is false).
+  if (status == PK_OK)
+    {
+      status = pkJsonStrings (client, json, "items", list);
+    }
+  cJSON_Delete (json);
+
+  return status;
+}
+
+/* Changes the trusted list: POST (add) or DELETE (remove) on
+ * /event/{id}/trusted with {"guests":[…]}; the answer is the resulting
+ * list. */
+static PKStatus
+pkTrustedWrite (PKClient *client, const PKChar *method, const PKChar *event,
+                const PKChar *const *entries, PKSize count, PKStringList *list)
+{
+  PKStringList dummy;
+  list = list ? list : &dummy;
+  *list = (PKStringList){ 0 };
+
+  PKChar path[PATH_MAX_API];
+  PKStatus status
+      = event && (entries || !count)
+            ? pkPath (client, path, sizeof (path), "/event/%s/trusted", event)
+            : pkFail (client, PK_EARG, 0, "No event or entries");
+  if (status != PK_OK)
+    {
+      return status;
+    }
+
+  cJSON *body = cJSON_CreateObject ();
+  cJSON *array = body ? cJSON_AddArrayToObject (body, "guests") : NULL;
+  PKBool ok = array != NULL;
+  for (PKSize i = 0; ok && i < count; ++i)
+    {
+      cJSON *entry = entries[i] ? cJSON_CreateString (entries[i]) : NULL;
+      ok = entry && cJSON_AddItemToArray (array, entry);
+      if (!ok)
+        {
+          cJSON_Delete (entry);
+        }
+    }
+  if (!ok)
+    {
+      cJSON_Delete (body);
+      return pkFailMem (client);
+    }
+
+  cJSON *json = NULL;
+  status = pkCall (client, method, path, body, 200, &json);
+  cJSON_Delete (body);
+  if (status == PK_EHTTP && pkError (client)->code == 400)
+    {
+      status = pkFail (client, PK_EHTTP, 400,
+                       "Invalid email or domain, or more than 200 entries");
+    }
+  if (status == PK_OK)
+    {
+      status = pkJsonStrings (client, json, "items", list);
+    }
+  cJSON_Delete (json);
+  if (list == &dummy)
+    {
+      pkStringListFree (&dummy);
+    }
+
+  return status;
+}
+
+PKStatus
+pkEventTrustedAdd (PKClient *client, const PKChar *event,
+                   const PKChar *const *entries, PKSize count,
+                   PKStringList *list)
+{
+  return pkTrustedWrite (client, "POST", event, entries, count, list);
+}
+
+PKStatus
+pkEventTrustedRemove (PKClient *client, const PKChar *event,
+                      const PKChar *const *entries, PKSize count,
+                      PKStringList *list)
+{
+  return pkTrustedWrite (client, "DELETE", event, entries, count, list);
+}
+
+PKVoid
+pkStringListFree (PKStringList *list)
+{
+  for (PKSize i = 0; list->items && i < list->count; ++i)
+    {
+      pkMemFree (list->items[i]);
+    }
+  pkMemFree (list->items);
+  list->items = NULL;
+  list->count = 0;
 }
 
 PKStatus

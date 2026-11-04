@@ -224,6 +224,7 @@ pkcArgParseList (PKCArg *args, PKInt argc, PKChar **argv)
                                  { "query", 'q', PK_TRUE },
                                  { "owner-only", 'o', PK_FALSE },
                                  { "favorite-only", 'f', PK_FALSE },
+                                 { "contributor-only", 'c', PK_FALSE },
                                  { "one", '1', PK_FALSE },
                                  { "format", 'F', PK_TRUE },
                                  { NULL, 0, PK_FALSE } };
@@ -251,6 +252,11 @@ pkcArgParseList (PKCArg *args, PKInt argc, PKChar **argv)
         case 'f':
           PKC_DSLOW ("Arg: --favorite-only");
           args->flags |= PKC_FFAV;
+          break;
+
+        case 'c':
+          PKC_DSLOW ("Arg: --contributor-only");
+          args->flags |= PKC_FCON;
           break;
 
         case '1':
@@ -871,6 +877,129 @@ pkcArgParseLink (PKCArg *args, PKInt argc, PKChar **argv)
   return PK_OK;
 }
 
+static PKInt
+pkcArgParseJoin (PKCArg *args, PKInt argc, PKChar **argv)
+{
+  static const PKCOpt opts[] = { { "dir", 'D', PK_TRUE },
+                                 { "invite", 'i', PK_TRUE },
+                                 { "one", '1', PK_FALSE },
+                                 { "format", 'F', PK_TRUE },
+                                 { NULL, 0, PK_FALSE } };
+  const PKChar *value;
+  PKInt c;
+  while ((c = pkcOptNext (argc, argv, opts, &value)) != -1)
+    {
+      switch (c)
+        {
+        case 'D':
+          PKC_DSLOW ("Arg: --dir=%s", value);
+          args->dir = value;
+          break;
+
+        case 'i':
+          PKC_DSLOW ("Arg: --invite=%s", value);
+          args->c.join.invite = value;
+          break;
+
+        case '1':
+          PKC_DSLOW ("Arg: -1");
+          args->flags = (args->flags & ~(PKDword)PKC_FFMTMASK) | PKC_FFMTONE;
+          break;
+
+        case 'F':
+          PKC_DSLOW ("Arg: --format=%s", value);
+          if (pkcArgParseFmt (args, value) != PK_OK)
+            {
+              return PK_EARG;
+            }
+          break;
+
+        default:
+          return PK_EARG;
+        }
+    }
+
+  if (args->c.join.invite == NULL || pkcOptIndex () != argc)
+    {
+      return PK_EARG;
+    }
+
+  return PK_OK;
+}
+
+static PKInt
+pkcArgParseTrusted (PKCArg *args, PKInt argc, PKChar **argv)
+{
+  static const PKCOpt opts[]
+      = { { "dir", 'D', PK_TRUE },    { "event", 'e', PK_TRUE },
+          { "add", 'a', PK_TRUE },    { "remove", 'r', PK_TRUE },
+          { "clear", 'c', PK_FALSE }, { "one", '1', PK_FALSE },
+          { "format", 'F', PK_TRUE }, { NULL, 0, PK_FALSE } };
+  const PKChar *value;
+  PKInt c;
+  while ((c = pkcOptNext (argc, argv, opts, &value)) != -1)
+    {
+      switch (c)
+        {
+        case 'D':
+          PKC_DSLOW ("Arg: --dir=%s", value);
+          args->dir = value;
+          break;
+
+        case 'e':
+          PKC_DSLOW ("Arg: --event=%s", value);
+          args->c.trusted.event = value;
+          break;
+
+        case 'a':
+          PKC_DSLOW ("Arg: --add=%s", value);
+          if (args->c.trusted.adds >= PKC_ARG_LIST_MAX)
+            {
+              return PK_EARG;
+            }
+          args->c.trusted.add[args->c.trusted.adds++] = value;
+          break;
+
+        case 'r':
+          PKC_DSLOW ("Arg: --remove=%s", value);
+          if (args->c.trusted.removes >= PKC_ARG_LIST_MAX)
+            {
+              return PK_EARG;
+            }
+          args->c.trusted.remove[args->c.trusted.removes++] = value;
+          break;
+
+        case 'c':
+          PKC_DSLOW ("Arg: --clear");
+          args->flags |= PKC_FCLEAR;
+          break;
+
+        case '1':
+          PKC_DSLOW ("Arg: -1");
+          args->flags = (args->flags & ~(PKDword)PKC_FFMTMASK) | PKC_FFMTONE;
+          break;
+
+        case 'F':
+          PKC_DSLOW ("Arg: --format=%s", value);
+          if (pkcArgParseFmt (args, value) != PK_OK)
+            {
+              return PK_EARG;
+            }
+          break;
+
+        default:
+          return PK_EARG;
+        }
+    }
+
+  if (args->c.trusted.event == NULL || pkcOptIndex () != argc)
+    {
+      return PK_EARG;
+    }
+
+  return PK_OK;
+}
+
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Definitions - Public
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
@@ -976,6 +1105,16 @@ pkcArgParse (PKCArg *args, PKInt argc, PKChar **argv)
     {
       args->cmd = PKC_CCARD;
       return pkcArgParseCard (args, argc - 1, &argv[1]);
+    }
+  else if (pkcStrEq (cmd, "join"))
+    {
+      args->cmd = PKC_CJOIN;
+      return pkcArgParseJoin (args, argc - 1, &argv[1]);
+    }
+  else if (pkcStrEq (cmd, "trusted"))
+    {
+      args->cmd = PKC_CTRUSTED;
+      return pkcArgParseTrusted (args, argc - 1, &argv[1]);
     }
   else
     {
