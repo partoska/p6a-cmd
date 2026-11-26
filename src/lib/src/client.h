@@ -145,4 +145,14 @@ PKStatus pkWorkdir (PKClient *client, const PKChar *dir, PKChar *out,
  */
 PKStatus pkBearer (PKClient *client, const PKChar **token);
 
+/**
+ * Renews the login now, after the server refused an access token that
+ * pkBearer() still took for valid; the renewed login is saved.
+ *
+ * @param client Logged-in client.
+ * @param token  Receives the new token, owned by the client.
+ * @return PK_OK on success, PK_EAUTH when not logged in or refused.
+ */
+PKStatus pkBearerRenew (PKClient *client, const PKChar **token);
+
 #endif

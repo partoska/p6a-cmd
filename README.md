@@ -6,7 +6,7 @@
 
 Manage and sync your event photos from [Partoska](https://www.partoska.com) — right from your terminal.
 
-[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v2.1.0) [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt) [![Build](https://github.com/partoska/p6a-cmd/actions/workflows/build.yml/badge.svg)](https://github.com/partoska/p6a-cmd/actions/workflows/build.yml)
+[![Version](https://img.shields.io/badge/version-2.1.1-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v2.1.1) [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt) [![Build](https://github.com/partoska/p6a-cmd/actions/workflows/build.yml/badge.svg)](https://github.com/partoska/p6a-cmd/actions/workflows/build.yml)
 [![npm](https://img.shields.io/npm/v/@partoska/p6a.svg)](https://www.npmjs.com/package/@partoska/p6a)
 
 ## What is this?
@@ -872,7 +872,7 @@ You can view your config file at `~/.p6a/p6a.ini`. It holds your login, so it is
 ### How It Works
 
 1. **Authentication:** Uses the OAuth 2.0 device authorization grant (RFC 8628): you approve the login in a browser, on this or any other device.
-2. **Token Management:** Automatically renews the login when the access token has expired or is about to, and saves it.
+2. **Token Management:** Automatically renews the login when the access token has expired or is about to, or when the server refuses it, and saves it.
 3. **Syncing:** Fetches events via REST API, downloads media files, and tracks what's been synced.
 4. **Event Tracking:** Uses IDs to identify events, even if names change.
 5. **Interrupting:** Ctrl-C stops a running command cleanly; a file being downloaded is removed, finished files stay.
@@ -997,7 +997,7 @@ main (void)
 - **Errors.** Calls return a `PKStatus` (`PK_ENET` transport, `PK_EHTTP` unexpected HTTP status, `PK_EAUTH` login missing or refused, `PK_EDATA` malformed data, `PK_EFS` files, `PK_ESTOPPED`, …); `pkError (client)` holds the code (errno, libcurl code or HTTP status) and a message.
 - **Logging.** `pkLogSetHandler` and `pkLogSetLevel` route the messages of a client; without a handler it stays silent.
 - **Stopping.** `pkStop (client)` is async-signal-safe: call it from a `SIGINT` or `SIGTERM` handler, and requests in progress and waits end with `PK_ESTOPPED`.
-- **Calls.** `pkEventList`, `pkEventCreate`, `pkEventUpdate`, `pkEventLink`, `pkEventQr`, `pkEventCard`, `pkMediaList`, `pkMediaDownload`, `pkMediaUpdate`, `pkMediaApprove`, `pkMediaUpload`, and the steps of an upload session (`pkUploadStart`, `pkUploadChunk`, `pkUploadComplete`, `pkUploadCancel`). An expired access token is renewed on the way, and downloads that fail leave no partial file.
+- **Calls.** `pkEventList`, `pkEventCreate`, `pkEventUpdate`, `pkEventLink`, `pkEventQr`, `pkEventCard`, `pkMediaList`, `pkMediaDownload`, `pkMediaUpdate`, `pkMediaApprove`, `pkMediaUpload`, and the steps of an upload session (`pkUploadStart`, `pkUploadChunk`, `pkUploadComplete`, `pkUploadCancel`). An expired access token is renewed on the way, a refused one is renewed once and the call repeated, and downloads that fail leave no partial file.
 - **Process.** Call `pkGlobalInit` once before the first client (it initializes libcurl) and `pkGlobalCleanup` after the last.
 
 Every package of `p6a` (and `make install` or `cmake --install`) installs the static library `libpartoska.a`, its headers `partoska.h` and `pktypes.h`, and `partoska.pc`. Link with pkg-config:

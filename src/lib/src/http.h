@@ -68,7 +68,9 @@ typedef struct PKResponse
 /**
  * Performs a request. Any HTTP status is a response; only transport
  * failures (PK_ENET), stops (PK_ESTOPPED) and, for API calls, a missing
- * login (PK_EAUTH) fail.
+ * login (PK_EAUTH) fail. An API call answered with 401 renews the login and
+ * is sent once more; a refused renewal fails with PK_EAUTH. A response body
+ * goes to request->file only with a 2xx status, any other to the response.
  *
  * @param client   Client to run in.
  * @param request  What to send.

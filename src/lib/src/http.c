@@ -54,8 +54,11 @@ typedef long CURLlong;
 /* Where the response body goes. */
 typedef struct PKSink
 {
-  PKResponse *response; /* Collects the body, unless file is set. */
-  PKFile *file;         /* Receives the body. */
+  PKResponse *response; /* Collects the body, unless it goes to file. */
+  PKFile *file;         /* Receives a successful body. */
+  CURL *curl;           /* Transfer, for the status of the answer. */
+  PKBool checked;       /* The status has been looked at. */
+  PKBool toFile;        /* The body goes to file. */
   PKBool failed;        /* The body could not be stored. */
 } PKSink;
 
@@ -68,7 +71,17 @@ pkWrite (PKChar *data, PKSize sz, PKSize n, PKVoid *user)
 {
   PKSink *sink = (PKSink *)user;
   PKSize size = sz * n;
-  if (sink->file)
+  if (sink->file && !sink->checked)
+    {
+      // Only a successful answer is the file. An error body goes to the
+      // response, where pkExpect() quotes it, and leaves the file empty for
+      // a repeated request.
+      CURLlong http = 0;
+      curl_easy_getinfo (sink->curl, CURLINFO_RESPONSE_CODE, &http);
+      sink->toFile = http >= 200 && http < 300;
+      sink->checked = PK_TRUE;
+    }
+  if (sink->toFile)
     {
       if (pkFileWrite (sink->file, data, size) != size)
         {
@@ -149,42 +162,12 @@ pkThrottle (PKClient *client)
   return PK_OK;
 }
 
-/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- * Definitions - Internal
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-
-PKStatus
-pkRequest (PKClient *client, const PKRequest *request, PKResponse *response)
+/* Sends a request once, with the bearer token when there is one. */
+static PKStatus
+pkPerform (PKClient *client, const PKRequest *request, const PKChar *url,
+           const PKChar *token, PKResponse *response)
 {
   *response = (PKResponse){ 0 };
-  if (client->stop)
-    {
-      return pkFail (client, PK_ESTOPPED, 0, "Stopped");
-    }
-
-  PKChar url[URL_MAX];
-  PKInt length = pkStrFmt (url, sizeof (url), "%s%s",
-                           request->api ? client->cfg->glob->endpoint : "",
-                           request->url);
-  if (length < 0 || (PKSize)length >= sizeof (url))
-    {
-      return pkFail (client, PK_EARG, 0, "URL too long: %s", request->url);
-    }
-
-  const PKChar *token = NULL;
-  if (request->api)
-    {
-      PKStatus status = pkBearer (client, &token);
-      if (status == PK_OK)
-        {
-          status = pkThrottle (client);
-        }
-      if (status != PK_OK)
-        {
-          return status;
-        }
-    }
-
   CURL *curl = curl_easy_init ();
   if (!curl)
     {
@@ -219,7 +202,8 @@ pkRequest (PKClient *client, const PKRequest *request, PKResponse *response)
     }
 
   const PKChar *method = request->method ? request->method : "GET";
-  PKSink sink = { response, request->file, PK_FALSE };
+  PKSink sink
+      = { response, request->file, curl, PK_FALSE, PK_FALSE, PK_FALSE };
   curl_easy_setopt (curl, CURLOPT_URL, url);
   curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
   curl_easy_setopt (curl, CURLOPT_WRITEFUNCTION, pkWrite);
@@ -262,10 +246,10 @@ pkRequest (PKClient *client, const PKRequest *request, PKResponse *response)
     }
   else if (code == CURLE_WRITE_ERROR && sink.failed)
     {
-      status = request->file ? pkFail (client, PK_EFS, pkSysError (),
-                                       "Cannot write the response: %s",
-                                       pkSysErrorText (pkSysError ()))
-                             : pkFailMem (client);
+      status = sink.toFile ? pkFail (client, PK_EFS, pkSysError (),
+                                     "Cannot write the response: %s",
+                                     pkSysErrorText (pkSysError ()))
+                           : pkFailMem (client);
     }
   else if (code != CURLE_OK)
     {
@@ -289,6 +273,67 @@ pkRequest (PKClient *client, const PKRequest *request, PKResponse *response)
     }
 
   return status;
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Definitions - Internal
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+PKStatus
+pkRequest (PKClient *client, const PKRequest *request, PKResponse *response)
+{
+  *response = (PKResponse){ 0 };
+  if (client->stop)
+    {
+      return pkFail (client, PK_ESTOPPED, 0, "Stopped");
+    }
+
+  PKChar url[URL_MAX];
+  PKInt length = pkStrFmt (url, sizeof (url), "%s%s",
+                           request->api ? client->cfg->glob->endpoint : "",
+                           request->url);
+  if (length < 0 || (PKSize)length >= sizeof (url))
+    {
+      return pkFail (client, PK_EARG, 0, "URL too long: %s", request->url);
+    }
+
+  const PKChar *token = NULL;
+  if (request->api)
+    {
+      PKStatus status = pkBearer (client, &token);
+      if (status == PK_OK)
+        {
+          status = pkThrottle (client);
+        }
+      if (status != PK_OK)
+        {
+          return status;
+        }
+    }
+
+  PKStatus status = pkPerform (client, request, url, token, response);
+  if (status != PK_OK || !token || response->status != 401)
+    {
+      return status;
+    }
+
+  // The server refused an access token that looked valid here: revoked, or
+  // judged by a clock that is still wrong after boot. Renew the login and
+  // try once more; only a refused renewal means the login is gone.
+  pkLog (client, PK_LOG_DEBUG, "Access token refused, renewing");
+  pkResponseFree (response);
+  status = pkBearerRenew (client, &token);
+  if (status != PK_OK)
+    {
+      return pkErrorContext (client, "Cannot renew the login");
+    }
+  status = pkThrottle (client);
+  if (status != PK_OK)
+    {
+      return status;
+    }
+
+  return pkPerform (client, request, url, token, response);
 }
 
 PKStatus

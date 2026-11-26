@@ -343,6 +343,18 @@ pkBearer (PKClient *client, const PKChar **token)
   return PK_OK;
 }
 
+PKStatus
+pkBearerRenew (PKClient *client, const PKChar **token)
+{
+  PKStatus status = pkRenew (client);
+  if (status == PK_OK)
+    {
+      *token = client->cfg->login->access;
+    }
+
+  return status;
+}
+
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Definitions - Public
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
