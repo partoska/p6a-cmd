@@ -48,6 +48,10 @@
 #define SLOW_DOWN_SECS (5)
 #define POLL_FAILURES_MAX (3)
 
+/* Longest code lifetime taken from the server, in seconds: a day keeps its
+ * milliseconds within pkClockMs()'s 32 bits. */
+#define LIFETIME_MAX (24 * 60 * 60)
+
 /* Renew an access token that expires within this many seconds. */
 #define RENEW_AHEAD (15 * 60)
 
@@ -206,12 +210,19 @@ pkRenew (PKClient *client)
 
 /*
  * Polls the token endpoint until the user decides or the code expires
- * (RFC 8628, section 3.4).
+ * (RFC 8628, section 3.4), lifetime seconds after it was issued. The
+ * lifetime runs on the monotonic clock: a wall clock set from the network
+ * meanwhile (a device without a battery-backed clock, just online) would
+ * end it at once. Unsigned differences of pkClockMs() survive its wrap.
  */
 static PKStatus
 pkAwait (PKClient *client, const PKChar *code, PKLong interval,
-         PKTime deadline)
+         PKLong lifetime)
 {
+  const PKDword started = pkClockMs ();
+  const PKDword limit
+      = (PKDword)(lifetime < LIFETIME_MAX ? lifetime : LIFETIME_MAX) * 1000u;
+
   PKChar *body;
   PKStatus status
       = pkForm (client, &body, "grant_type", DEVICE_GRANT, "client_id",
@@ -223,7 +234,7 @@ pkAwait (PKClient *client, const PKChar *code, PKLong interval,
 
   PKInt failures = 0;
   status = PK_EAUTH;
-  while (pkTimeNow () < deadline)
+  while ((PKDword)(pkClockMs () - started) < limit)
     {
       status = pkNap (client, interval * 1000);
       if (status != PK_OK)
@@ -300,7 +311,7 @@ pkAwait (PKClient *client, const PKChar *code, PKLong interval,
     }
 
   pkMemFree (body);
-  if (status == PK_EAUTH && pkTimeNow () >= deadline)
+  if (status == PK_EAUTH && (PKDword)(pkClockMs () - started) >= limit)
     {
       status = pkFail (client, PK_EAUTH, 0, "The code has expired");
     }
@@ -416,10 +427,9 @@ pkLogin (PKClient *client, PKLoginCodeFn prompt, PKVoid *user)
   PKLong wait = cJSON_IsNumber (interval) && interval->valueint > 0
                     ? (PKLong)interval->valueint
                     : INTERVAL_DEFAULT;
-  PKTime deadline = pkTimeNow () + expires->valueint;
 
   prompt (user, complete ? complete : uri, usercode, expires->valueint);
-  status = pkAwait (client, code, wait, deadline);
+  status = pkAwait (client, code, wait, (PKLong)expires->valueint);
   cJSON_Delete (json);
 
   return status;

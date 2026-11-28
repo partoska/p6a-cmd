@@ -41,7 +41,7 @@
 
 #define PK_VERSION_MAJOR 2
 #define PK_VERSION_MINOR 1
-#define PK_VERSION_PATCH 1
+#define PK_VERSION_PATCH 2
 #define PK_VERSION_STRING                                                     \
   PK_XSTR (PK_VERSION_MAJOR)                                                  \
   "." PK_XSTR (PK_VERSION_MINOR) "." PK_XSTR (PK_VERSION_PATCH)

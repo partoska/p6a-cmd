@@ -6,7 +6,7 @@
 
 Manage and sync your event photos from [Partoska](https://www.partoska.com) — right from your terminal.
 
-[![Version](https://img.shields.io/badge/version-2.1.1-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v2.1.1) [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt) [![Build](https://github.com/partoska/p6a-cmd/actions/workflows/build.yml/badge.svg)](https://github.com/partoska/p6a-cmd/actions/workflows/build.yml)
+[![Version](https://img.shields.io/badge/version-2.1.2-blue.svg)](https://github.com/partoska/p6a-cmd/releases/tag/v2.1.2) [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt) [![Build](https://github.com/partoska/p6a-cmd/actions/workflows/build.yml/badge.svg)](https://github.com/partoska/p6a-cmd/actions/workflows/build.yml)
 [![npm](https://img.shields.io/npm/v/@partoska/p6a.svg)](https://www.npmjs.com/package/@partoska/p6a)
 
 ## What is this?

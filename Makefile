@@ -28,7 +28,7 @@
 # Project configuration.
 PROJECT = p6a
 LIBRARY = partoska
-VERSION = 2.1.1
+VERSION = 2.1.2
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
 LIBDIR ?= $(PREFIX)/lib

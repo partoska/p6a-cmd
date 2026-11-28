@@ -317,9 +317,8 @@ pkRequest (PKClient *client, const PKRequest *request, PKResponse *response)
       return status;
     }
 
-  // The server refused an access token that looked valid here: revoked, or
-  // judged by a clock that is still wrong after boot. Renew the login and
-  // try once more; only a refused renewal means the login is gone.
+  // The server refused an access token that looked valid.
+  // Let's try once again with fresh one.
   pkLog (client, PK_LOG_DEBUG, "Access token refused, renewing");
   pkResponseFree (response);
   status = pkBearerRenew (client, &token);
